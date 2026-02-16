@@ -1,0 +1,1 @@
+ALTER TABLE affiliate_applications DROP COLUMN stripe_connect_account_id;
