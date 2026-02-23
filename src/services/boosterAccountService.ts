@@ -124,6 +124,13 @@ export const boosterAccountService = {
       }
 
       console.log(`✅ Created booster account ${data.id} for user ${userId}`);
+      // Log account creation activity
+      try {
+        await activityService.logAccountCreated(userId);
+        await activityService.logPlanAdded(userId, plan.plan_name, plan.monthly_amount);
+      } catch (logErr) {
+        console.warn('Failed to log account creation/plan activity:', logErr);
+      }
       return data;
     } catch (error) {
       console.error("Error in createAccount:", error);

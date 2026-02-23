@@ -565,12 +565,6 @@ export default function ConfirmationPage() {
                     </p>
                     <p className="font-medium">{paymentInfo.expirationDate}</p>
                   </div>
-                  <div>
-                    <p className="text-brand-white/60 text-sm">Auto Pay</p>
-                    <p className="font-medium">
-                      {paymentInfo.autoPayEnabled ? 'Enabled' : 'Disabled'}
-                    </p>
-                  </div>
                 </div>
               </div>
 

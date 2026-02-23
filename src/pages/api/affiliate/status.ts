@@ -9,21 +9,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const supabase = createAdminClient();
   // Query by id (which is the user ID)
-  const { data, error } = await supabase
+  const { data: affiliateApp } = await supabase
     .from('affiliate_applications')
     .select('affiliate_status, id')
     .eq('id', userId)
-    .single();
-  if (error || !data) {
-    return res.status(404).json({
-      status: 'pending',
-      debug: {
-        tried_id: userId,
-        error,
-        data,
-      }
-    });
-  }
+    .maybeSingle();
 
   // Check if user has a booster account (not affiliate-only)
   const { data: boosterAccounts } = await supabase
@@ -32,22 +22,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     .eq('user_id', userId);
   const isAffiliateOnly = !boosterAccounts || boosterAccounts.length === 0;
 
-  // Look up referral code from profiles table
+  // Look up referral code and affiliate flags from profiles table
   let referralCode = null;
   let referralLink = null;
   const { data: profile } = await supabase
     .from('profiles')
-    .select('referral_code')
+    .select('referral_code, is_affiliate, stripe_connect_account_id, stripe_account_id')
     .eq('id', userId)
     .maybeSingle();
-  if (profile && profile.referral_code) {
+  if (profile?.referral_code) {
     referralCode = profile.referral_code;
     const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     referralLink = `${base}/?ref=${encodeURIComponent(referralCode)}`;
   }
 
+  // Derive effective affiliate status
+  let affiliateStatus = affiliateApp?.affiliate_status || 'pending';
+  const hasStripeAccount =
+    !!profile?.stripe_connect_account_id || !!profile?.stripe_account_id;
+  const isAffiliateFlag = !!profile?.is_affiliate;
+  if (affiliateStatus !== 'inactive') {
+    if (affiliateStatus === 'approved' || affiliateStatus === 'active') {
+      affiliateStatus = 'active';
+    } else if (isAffiliateFlag || hasStripeAccount) {
+      affiliateStatus = 'active';
+    }
+  }
+
   res.status(200).json({
-    status: data.affiliate_status,
+    status: affiliateStatus,
     referralCode,
     referralLink,
     isAffiliateOnly,

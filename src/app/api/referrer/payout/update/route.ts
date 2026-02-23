@@ -48,14 +48,17 @@ export async function POST(req: Request) {
       if (referral.payout_status === 'paid') {
         return NextResponse.json({ error: 'Already paid' }, { status: 400 });
       }
-      // 2. Get the affiliate's Stripe account ID
-      const { data: referrerProfile, error: referrerProfileError } = await admin
-        .from('profiles')
-        .select('stripe_connect_account_id, email')
+      // 2. Get the affiliate's Stripe account ID from affiliate_applications
+      const { data: affiliateApp, error: affiliateAppError } = await admin
+        .from('affiliate_applications')
+        .select('stripe_account, email, affiliate_status')
         .eq('id', referral.referrer_id)
         .maybeSingle();
-      if (referrerProfileError || !referrerProfile || !referrerProfile.stripe_connect_account_id) {
+      if (affiliateAppError || !affiliateApp || !affiliateApp.stripe_account) {
         return NextResponse.json({ error: 'Affiliate Stripe account not found' }, { status: 404 });
+      }
+      if (affiliateApp.affiliate_status !== 'active') {
+        return NextResponse.json({ error: 'Affiliate account not active' }, { status: 400 });
       }
       // 3. Get payout amount (in cents)
       const payoutAmount = Math.round(Number(referral.payout_amount) * 100);
@@ -67,7 +70,7 @@ export async function POST(req: Request) {
         const transfer = await stripe.transfers.create({
           amount: payoutAmount,
           currency: 'usd',
-          destination: referrerProfile.stripe_connect_account_id,
+          destination: affiliateApp.stripe_account,
           transfer_group: 'affiliate_payouts',
           metadata: {
             referrer_id: referral.referrer_id,

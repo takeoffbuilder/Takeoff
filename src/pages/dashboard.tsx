@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { getMyReferrer, buildReferralLink } from '@/services/referralService';
+// import { Input } from '@/components/ui/input';
+// import { getMyReferrer, buildReferralLink } from '@/services/referralService';
 import {
   Card,
   CardContent,
@@ -68,37 +68,30 @@ interface BoosterAccount {
   utilizationPct?: number; // computed utilization percentage
 }
 
-interface UpcomingPayment {
-  id: string;
-  planName: string;
-  dueDate: string;
-  amount: number;
-  accountId: string;
-}
+// interface UpcomingPayment removed (unused)
 
 export default function DashboardPage() {
+  const { toast } = useToast();
+  const [selectedAccount, setSelectedAccount] = useState<BoosterAccount | null>(
+    null
+  );
+  const [upcomingPayments, setUpcomingPayments] = useState<any[]>([]);
+  const [boosterAccounts, setBoosterAccounts] = useState<BoosterAccount[]>([]);
+  const [firstName, setFirstName] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
   // Affiliate state (Supabase)
   // Removed unused affiliateCode
-  const [affiliateLink, setAffiliateLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  // const [affiliateLink, setAffiliateLink] = useState<string | null>(null);
+  // const [copied, setCopied] = useState(false);
+  // Remove unused affiliateLink/copy logic
   const [isAffiliate, setIsAffiliate] = useState(false);
+  const [isDualRole, setIsDualRole] = useState(false);
   const router = useRouter();
+  const [isNavigating, setIsNavigating] = useState(false);
   const [showAdminButton, setShowAdminButton] = useState(false);
   // Removed unused loadingAffiliate
 
-  useEffect(() => {
-    async function fetchAffiliate() {
-      const referrer = await getMyReferrer();
-      if (referrer && referrer.referral_code) {
-        setAffiliateLink(buildReferralLink(referrer.referral_code));
-        setIsAffiliate(true);
-      } else {
-        setIsAffiliate(false);
-        setAffiliateLink(null);
-      }
-    }
-    fetchAffiliate();
-  }, []);
+  // Removed fetchAffiliate useEffect and all setAffiliateLink/affiliateLink references
 
   // More robust admin check: runs on route change and on auth state change
   useEffect(() => {
@@ -123,30 +116,54 @@ export default function DashboardPage() {
     };
   }, [router.asPath]);
 
-  const handleCopyReferralLink = () => {
-    if (affiliateLink) {
-      navigator.clipboard.writeText(affiliateLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-      toast({
-        title: 'Copied!',
-        description: 'Referral link copied to clipboard.',
-      });
-    }
-  };
+  useEffect(() => {
+    async function fetchAffiliateAndDualRole() {
+      const user = await authService.getCurrentUser();
+      if (!user) {
+        setIsAffiliate(false);
+        setIsDualRole(false);
+        return;
+      }
+      try {
+        const [affiliateRes, subStatusRes] = await Promise.all([
+          fetch(`/api/affiliate/status?userId=${user.id}`),
+          fetch(`/api/subscription/status?userId=${user.id}`),
+        ]);
+        const affiliateData = await affiliateRes.json();
+        const subStatusData = await subStatusRes.json();
+        console.log('Affiliate data:', affiliateData);
+        console.log('Sub status data:', subStatusData);
 
-  const { toast } = useToast();
-  const [firstName, setFirstName] = useState<string>('');
-  // const [userId, setUserId] = useState<string | null>(null);
-  const [boosterAccounts, setBoosterAccounts] = useState<BoosterAccount[]>([]);
-  const [upcomingPayments, setUpcomingPayments] = useState<UpcomingPayment[]>(
-    []
-  );
-  const [isLoading, setIsLoading] = useState(true);
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState<BoosterAccount | null>(
-    null
-  );
+        const affiliate =
+          affiliateData &&
+          affiliateData.status &&
+          (affiliateData.status.toLowerCase() === 'approved' ||
+            affiliateData.status.toLowerCase() === 'active');
+        console.log('isAffiliate:', affiliate);
+        setIsAffiliate(!!affiliate);
+
+        // Use isAffiliateOnly from API - true means affiliate-only (no subscription)
+        const isAffiliateOnlyFromAPI = !!affiliateData?.isAffiliateOnly;
+        console.log('isAffiliateOnly:', isAffiliateOnlyFromAPI);
+        // isDualRole is true if affiliate AND has subscription (opposite of affiliate-only)
+        const dualRole = affiliate && !isAffiliateOnlyFromAPI;
+        console.log('isDualRole:', dualRole);
+        setIsDualRole(dualRole);
+      } catch (e) {
+        console.error('Error fetching affiliate status:', e);
+        setIsAffiliate(false);
+        setIsDualRole(false);
+      }
+    }
+    fetchAffiliateAndDualRole();
+  }, []);
+
+  // Redirect affiliate-only users to affiliate dashboard
+  useEffect(() => {
+    if (isAffiliate && !isDualRole) {
+      router.replace('/affiliate-dashboard');
+    }
+  }, [isAffiliate, isDualRole, router]);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [accountToCancel, setAccountToCancel] = useState<string | null>(null);
@@ -593,11 +610,6 @@ export default function DashboardPage() {
     setTimeout(() => setSelectedAccount(null), 300);
   };
 
-  const handleCancelAccount = (accountId: string) => {
-    setAccountToCancel(accountId);
-    setIsCancelConfirmOpen(true);
-  };
-
   const confirmCancelAccount = async () => {
     if (!accountToCancel) return;
 
@@ -690,12 +702,24 @@ export default function DashboardPage() {
     );
   }
 
+  // Redirect affiliate-only users to affiliate dashboard
+  if (isAffiliate && !isDualRole) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-brand-midnight via-brand-charcoal to-brand-midnight">
+        <div className="text-center space-y-4">
+          <p className="text-white text-lg">
+            Redirecting to Affiliate Dashboard...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Only one return block for the main dashboard
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-gradient-to-b from-brand-midnight via-brand-charcoal to-brand-midnight">
       <StarField />
-
       <div className="absolute inset-0 bg-gradient-radial from-brand-sky-blue/5 via-transparent to-transparent opacity-50" />
-
       <div className="relative z-10 min-h-screen">
         <header className="border-b border-brand-sky-blue/20 bg-brand-charcoal/50 backdrop-blur-xl">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -733,6 +757,16 @@ export default function DashboardPage() {
                   )}
                 </Button>
               )}
+              {/* Go to Affiliate Dashboard button for dual-role users only */}
+              {isAffiliate && isDualRole && (
+                <Button
+                  variant="secondary"
+                  onClick={() => router.push('/affiliate-dashboard')}
+                  className="bg-brand-sky-blue/10 text-brand-sky-blue border border-brand-sky-blue/30 rounded px-4 py-2 hover:bg-brand-sky-blue/20 hover:text-brand-sky-blue-light transition-colors ml-2"
+                >
+                  Go to Affiliate Dashboard
+                </Button>
+              )}
             </div>
             <div className="flex-1 flex justify-center">
               {showAdminButton && <AdminLink />}
@@ -751,40 +785,20 @@ export default function DashboardPage() {
 
         <main className="container mx-auto px-4 py-12">
           <div className="max-w-6xl mx-auto space-y-8">
-            {/* Affiliate Status & Link (Supabase) */}
-            <div className="mb-8">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-lg font-semibold text-brand-sky-blue">
-                  Affiliate Status:
-                </span>
-                {isAffiliate ? (
-                  <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
-                    Active
-                  </Badge>
-                ) : (
-                  <Badge className="bg-gray-500/20 text-gray-300 border-gray-500/30">
-                    Not Active
-                  </Badge>
-                )}
-              </div>
-              {isAffiliate && affiliateLink && (
-                <div className="flex flex-col md:flex-row items-center gap-2">
-                  <Input
-                    value={affiliateLink}
-                    readOnly
-                    className="bg-brand-midnight/50 border-brand-sky-blue/30 text-white w-full md:w-2/3"
-                    onFocus={(e) => e.target.select()}
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={handleCopyReferralLink}
-                    className="border-brand-sky-blue/30 text-white hover:bg-brand-sky-blue/10 hover:text-brand-sky-blue-light"
-                  >
-                    {copied ? 'Copied!' : 'Copy Link'}
-                  </Button>
-                </div>
+            {/* Affiliate Status Badge only, cleaner look */}
+            <div className="mb-8 flex items-center gap-3">
+              <span className="text-lg font-semibold text-brand-sky-blue">
+                Affiliate Status:
+              </span>
+              {isAffiliate ? (
+                <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
+                  Active
+                </Badge>
+              ) : (
+                <Badge className="bg-gray-500/20 text-gray-300 border-gray-500/30">
+                  Not Active
+                </Badge>
               )}
-              <div className="mt-4">{showAdminButton && <AdminLink />}</div>
             </div>
             <div className="text-center space-y-4">
               <h2 className="text-4xl font-bold text-white">
@@ -996,8 +1010,6 @@ export default function DashboardPage() {
                         <p className="text-gray-400 text-lg mb-2">
                           No upcoming payments
                         </p>
-                        {/* Removed verbiage: Add a Booster account to see your payment schedule */}
-                        {/* Removed Add Another Account button from Upcoming Payments section */}
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -1077,7 +1089,6 @@ export default function DashboardPage() {
             <Card className="border-brand-sky-blue/20 bg-brand-charcoal/50 backdrop-blur-xl shadow-xl shadow-brand-sky-blue/5">
               <CardHeader>
                 <CardTitle className="text-white">Quick Actions</CardTitle>
-                {/* Removed CardDescription verbiage under Quick Actions */}
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col sm:flex-row gap-4 justify-between">
@@ -1095,19 +1106,12 @@ export default function DashboardPage() {
                   </Button>
                   {!isAffiliate ? (
                     <Button
-                      onClick={() => router.push('/become-affiliate')}
+                      onClick={() => router.push('/affiliate')}
                       className="flex-1 w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-lg shadow-green-500/30 transition-all duration-300 hover:scale-105"
                     >
                       Become an Affiliate
                     </Button>
-                  ) : (
-                    <Button
-                      onClick={() => router.push('/affiliate-dashboard')}
-                      className="flex-1 w-full bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-brand-charcoal font-bold shadow-lg shadow-yellow-400/30 transition-all duration-300 hover:scale-105"
-                    >
-                      Go to Affiliate Dashboard
-                    </Button>
-                  )}
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -1350,13 +1354,6 @@ export default function DashboardPage() {
                       Make Payment
                     </Button>
                   )}
-                  <Button
-                    onClick={() => handleCancelAccount(selectedAccount.id)}
-                    variant="outline"
-                    className={`${selectedAccount.status === 'Active' ? 'flex-1' : 'w-full'} border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50`}
-                  >
-                    Cancel Account
-                  </Button>
                 </div>
 
                 <Button

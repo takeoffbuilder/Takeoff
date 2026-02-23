@@ -80,10 +80,7 @@ export default async function handler(
           .eq('stripe_subscription_id', subscriptionId)
           .maybeSingle();
         if (fetchError) {
-          console.error(
-            '[Webhook] Error fetching booster account for invoice.paid:',
-            fetchError
-          );
+          console.error('[Webhook] Error fetching booster account for invoice.paid:', fetchError);
           break;
         }
         if (account && account.id && nextPaymentDate) {
@@ -93,25 +90,79 @@ export default async function handler(
             .update({ next_payment_date: nextPaymentDate })
             .eq('id', account.id);
 
-          // Prevent duplicate payment records for the same invoice
-          const { data: existingPayment } = await supabase
-            .from('payments')
-            .select('id')
-            .eq('stripe_invoice_id', invoice.id)
-            .maybeSingle();
-
-          if (!existingPayment) {
-            // Insert payment record for renewal
-            await supabase.from('payments').insert({
+          // Idempotency: Prevent duplicate payment records for the same invoice or checkout session
+          let alreadyExists = false;
+          // Check by invoice_id
+          if (invoice.id) {
+            const { data: existingByInvoice } = await supabase
+              .from('payments')
+              .select('id')
+              .eq('stripe_invoice_id', invoice.id)
+              .maybeSingle();
+            if (existingByInvoice) alreadyExists = true;
+          }
+          // Check by checkout_id if not already found
+          let stripe_checkout_id = null;
+          const stripe_customer_id = invoice.customer || null;
+          const plan_slug = account.plan_slug || null;
+          if (!alreadyExists && invoice.subscription) {
+            const { data: paymentSession } = await supabase
+              .from('payments')
+              .select('stripe_checkout_id')
+              .eq('user_id', account.user_id)
+              .eq('plan_slug', plan_slug)
+              .maybeSingle();
+            if (paymentSession && paymentSession.stripe_checkout_id) {
+              stripe_checkout_id = paymentSession.stripe_checkout_id;
+              // Check for existing payment by checkout_id
+              const { data: existingByCheckout } = await supabase
+                .from('payments')
+                .select('id')
+                .eq('stripe_checkout_id', stripe_checkout_id)
+                .maybeSingle();
+              if (existingByCheckout) alreadyExists = true;
+            }
+          }
+          if (!alreadyExists) {
+            // Fetch payment method ID from PaymentIntent if available
+            let payment_method_id = null;
+            if (invoice.payment_intent) {
+              try {
+                const paymentIntent = await stripe.paymentIntents.retrieve(invoice.payment_intent);
+                payment_method_id = paymentIntent.payment_method || null;
+              } catch (err) {
+                console.warn('[Webhook] Could not fetch payment method for PaymentIntent:', invoice.payment_intent, err);
+              }
+            }
+            const paymentInsertPayload = {
               user_id: account.user_id,
               booster_account_id: account.id,
               stripe_invoice_id: invoice.id,
+              stripe_checkout_id,
+              stripe_customer_id,
+              plan_slug,
               amount: invoice.amount_paid / 100,
-              currency: invoice.currency,
+              currency: invoice.currency || null,
               status: 'completed',
               created_at: new Date().toISOString(),
               payment_type: 'subscription',
-            });
+              payment_method_id,
+            };
+            console.log('[Webhook] Attempting payments insert:', paymentInsertPayload);
+            const { error: paymentInsertError, data: paymentInsertData } = await supabase.from('payments').insert(paymentInsertPayload);
+            console.log('[Webhook] Payments insert result:', { paymentInsertError, paymentInsertData });
+            if (paymentInsertError) {
+              console.error('[Webhook] Error inserting payment:', paymentInsertError);
+              return res.status(500).json({ error: 'Failed to insert payment', details: paymentInsertError });
+            } else {
+              console.log('[Webhook] Inserted payment for user:', account.user_id, 'invoice:', invoice.id);
+              // Log payment activity
+              try {
+                await activityService.logPaymentMade(account.user_id, paymentInsertPayload.amount, plan_slug);
+              } catch (logErr) {
+                console.warn('[Webhook] Failed to log payment activity:', logErr);
+              }
+            }
           }
 
           // --- Referral crediting after second payment ---
@@ -125,23 +176,42 @@ export default async function handler(
             .eq('payment_type', 'subscription');
 
           if (!paymentsError && payments && payments.length >= 2) {
+            // Enhanced logging for referral conversion
+            console.log('[Webhook] Referral conversion check:', {
+              user_id: account.user_id,
+              booster_account_id: account.id,
+              payments_count: payments.length,
+              payments_ids: payments.map(p => p.id),
+            });
             // Check if user was referred
             const { data: referred, error: referredError } = await supabase
               .from('referred_users')
               .select('referrer_id')
               .eq('referred_user_id', account.user_id)
               .maybeSingle();
+            console.log('[Webhook] Fetched referred_users:', {
+              referred_user_id: account.user_id,
+              referred,
+              referredError,
+            });
             if (!referredError && referred && referred.referrer_id) {
               // Mark the referral as converted and payout_status as approved
-              const { error: referralUpdateError } = await supabase
+              const referralUpdatePayload = {
+                converted: true,
+                conversion_at: new Date().toISOString(),
+                payout_status: 'approved',
+                payout_amount: 10.0,
+              };
+              const { error: referralUpdateError, data: referralUpdateData } = await supabase
                 .from('referred_users')
-                .update({
-                  converted: true,
-                  conversion_at: new Date().toISOString(),
-                  payout_status: 'approved',
-                  payout_amount: 10.0,
-                })
+                .update(referralUpdatePayload)
                 .eq('referred_user_id', account.user_id);
+              console.log('[Webhook] Referral update attempt:', {
+                referred_user_id: account.user_id,
+                referralUpdatePayload,
+                referralUpdateError,
+                referralUpdateData,
+              });
               if (referralUpdateError) {
                 console.error('[Webhook] Error updating referred_users for conversion:', referralUpdateError);
               } else {
@@ -154,14 +224,25 @@ export default async function handler(
                 .select('total_signups')
                 .eq('id', referred.referrer_id)
                 .maybeSingle();
+              console.log('[Webhook] Fetched affiliate profile:', {
+                referrer_id: referred.referrer_id,
+                affiliateProfile,
+                fetchProfileError,
+              });
               if (fetchProfileError || !affiliateProfile) {
                 console.error('[Webhook] Error fetching affiliate profile for total_signups increment:', fetchProfileError);
               } else {
                 const newTotalSignups = (affiliateProfile.total_signups || 0) + 1;
-                const { error: profileUpdateError } = await supabase
+                const { error: profileUpdateError, data: profileUpdateData } = await supabase
                   .from('profiles')
                   .update({ total_signups: newTotalSignups })
                   .eq('id', referred.referrer_id);
+                console.log('[Webhook] Affiliate profile update attempt:', {
+                  referrer_id: referred.referrer_id,
+                  newTotalSignups,
+                  profileUpdateError,
+                  profileUpdateData,
+                });
                 if (profileUpdateError) {
                   console.error('[Webhook] Error updating total_signups in affiliate profile:', profileUpdateError);
                 } else {
@@ -174,7 +255,7 @@ export default async function handler(
               const period_year = now.getUTCFullYear();
               const period_month = now.getUTCMonth() + 1;
 
-              const { error: payoutInsertError } = await supabase.from('referral_payouts').insert({
+              const payoutPayload = {
                 referrer_id: referred.referrer_id,
                 period_year,
                 period_month,
@@ -182,6 +263,12 @@ export default async function handler(
                 conversions: 1,
                 created_at: new Date().toISOString(),
                 status: 'approved',
+              };
+              const { error: payoutInsertError, data: payoutInsertData } = await supabase.from('referral_payouts').insert(payoutPayload);
+              console.log('[Webhook] Referral payout insert attempt:', {
+                payoutPayload,
+                payoutInsertError,
+                payoutInsertData,
               });
               if (payoutInsertError) {
                 console.error('[Webhook] Error inserting referral_payouts:', payoutInsertError);
@@ -209,8 +296,11 @@ export default async function handler(
             '[Webhook] No matching booster account or nextPaymentDate for invoice.paid.'
           );
         }
+        // Confirm receipt of invoice.paid event
+        return res.status(200).json({ received: true, stripe_invoice_id: invoice.id });
       } catch (err) {
         console.error('[Webhook] Error handling invoice.paid:', err);
+        return res.status(200).json({ received: true, stripe_invoice_id: invoice.id });
       }
       break;
     }
@@ -224,114 +314,94 @@ export default async function handler(
       });
       if (userId) {
         const supabase = createAdminClient();
-        // Try to update, if no row exists, insert
+        // Check if user already has a Stripe customer ID
         const { data: existingProfile, error: fetchError } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, stripe_customer_id, full_name, first_name, last_name, phone')
           .eq('id', userId)
           .single();
         if (fetchError && fetchError.code !== 'PGRST116') {
           // PGRST116 = no rows found
-          console.error(
-            '[Webhook] Supabase fetch error (profiles):',
-            fetchError
-          );
+          console.error('[Webhook] Supabase fetch error (profiles):', fetchError);
         }
+        let fullName: string | null = null;
+        let phone: string | null = null;
+        let stripeCustomerId: string | null = null;
         if (existingProfile) {
-          // Update existing profile
+          stripeCustomerId = existingProfile.stripe_customer_id || null;
+          fullName = existingProfile.full_name || (existingProfile.first_name && existingProfile.last_name ? `${existingProfile.first_name} ${existingProfile.last_name}` : null);
+          phone = existingProfile.phone || null;
+        }
+        // If Stripe customer ID already exists, reuse it and update Stripe info
+        if (stripeCustomerId) {
+          // Update Stripe customer with latest info if needed
+          try {
+            await stripe.customers.update(stripeCustomerId, {
+              name: customer.name || fullName || undefined,
+              email: customer.email || undefined,
+              phone: customer.phone || phone || undefined,
+            });
+            console.log('[Webhook] Reused existing Stripe customer:', stripeCustomerId);
+          } catch (stripeUpdateErr) {
+            console.error('[Webhook] Failed to update existing Stripe customer:', stripeUpdateErr);
+          }
+          // Update profile with latest Stripe info
           const { error: updateError } = await supabase
             .from('profiles')
             .update({
-              stripe_customer_id: customer.id,
               stripe_name: customer.name,
               stripe_email: customer.email,
               email: customer.email,
             })
             .eq('id', userId);
           if (updateError) {
-            console.error(
-              '[Webhook] Supabase update error (customer.created):',
-              updateError
-            );
+            console.error('[Webhook] Supabase update error (customer.created):', updateError);
           } else {
-            console.log(
-              '[Webhook] Updated Stripe info in existing profile:',
-              customer.id,
-              userId
-            );
+            console.log('[Webhook] Updated Stripe info in existing profile:', stripeCustomerId, userId);
           }
         } else {
-          // Insert new profile
-          const { error: insertError } = await supabase
+          // No Stripe customer ID, create new customer and save immediately
+          const newCustomerId = customer.id;
+          // Save the customer ID to the profile
+          const { error: updateError } = await supabase
             .from('profiles')
-            .insert({
-              id: userId,
-              stripe_customer_id: customer.id,
+            .update({
+              stripe_customer_id: newCustomerId,
               stripe_name: customer.name,
               stripe_email: customer.email,
               email: customer.email,
-              created_at: new Date().toISOString(),
-            });
-          if (insertError) {
-            console.error(
-              '[Webhook] Supabase insert error (customer.created):',
-              insertError
-            );
+            })
+            .eq('id', userId);
+          if (updateError) {
+            console.error('[Webhook] Supabase update error (customer.created):', updateError);
           } else {
-            console.log(
-              '[Webhook] Inserted new profile for Stripe customer:',
-              customer.id,
-              userId
-            );
+            console.log('[Webhook] Saved new Stripe customer ID in profile:', newCustomerId, userId);
           }
         }
-        // If Stripe customer name is missing, fetch from Supabase and update Stripe
-        if (!customer.name) {
-          let fullName: string | null = null;
-          try {
-            const { data: profile, error: profileError } = await supabase
-              .from('profiles')
-              .select('full_name, first_name, last_name')
-              .eq('id', userId)
-              .single();
-            if (profileError) {
-              console.warn(
-                '[Webhook] Could not fetch profile name fields:',
-                profileError
-              );
-            } else {
-              if (profile?.full_name) {
-                fullName = profile.full_name;
-              } else if (profile?.first_name && profile?.last_name) {
-                fullName = `${profile.first_name} ${profile.last_name}`;
-              }
-            }
-          } catch (profileFetchErr) {
-            console.warn('[Webhook] Profile fetch error:', profileFetchErr);
-          }
+        // Always try to update Stripe customer with name and phone if available
+        if ((!customer.name || !customer.phone) && (fullName || phone)) {
+          const updateObj: { name?: string; phone?: string } = {};
           if (fullName && typeof fullName === 'string' && fullName.trim()) {
+            updateObj.name = fullName;
+          }
+          if (phone && typeof phone === 'string' && phone.trim()) {
+            updateObj.phone = phone;
+          }
+          if (Object.keys(updateObj).length > 0) {
             try {
-              await stripe.customers.update(customer.id, { name: fullName });
-              console.log(
-                '[Webhook] Updated Stripe customer name to:',
-                fullName
-              );
-            } catch (stripeNameErr) {
-              console.error(
-                '[Webhook] Failed to update Stripe customer name:',
-                stripeNameErr
-              );
+              await stripe.customers.update(customer.id, updateObj);
+              console.log('[Webhook] Updated Stripe customer with:', updateObj);
+            } catch (stripeUpdateErr) {
+              console.error('[Webhook] Failed to update Stripe customer:', stripeUpdateErr);
             }
           } else {
-            console.log(
-              '[Webhook] Skipping Stripe customer name update (no valid fullName).'
-            );
+            console.log('[Webhook] Skipping Stripe customer update (no valid name/phone).');
           }
-  }
-} else {
-  console.warn('[Webhook] No userId found in customer metadata.');
-}
-break;
+        }
+      } else {
+        console.warn('[Webhook] No userId found in customer metadata.');
+      }
+      break;
     }
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -421,71 +491,28 @@ break;
                 ? session.subscription
                 : null,
           };
-          console.log(
-            '[Webhook] Attempting Supabase insert (user_booster_accounts):',
-            boosterAccountData
-          );
-          const { error: boosterError } = await supabase
+          console.log('[Webhook] Attempting Supabase insert (user_booster_accounts):', boosterAccountData);
+          const { error: boosterError, data: boosterInsertData } = await supabase
             .from('user_booster_accounts')
             .insert(boosterAccountData);
+          console.log('[Webhook] user_booster_accounts insert result:', { boosterError, boosterInsertData });
           if (boosterError) {
-            console.error(
-              '[Webhook] Supabase insert error (user_booster_accounts):',
-              boosterError
-            );
+            console.error('[Webhook] Supabase insert error (user_booster_accounts):', boosterError);
           } else {
-            console.log(
-              '[Webhook] Inserted user_booster_account for user:',
-              userId,
-              'plan:',
-              planSlug
-            );
+            console.log('[Webhook] Inserted user_booster_account for user:', userId, 'plan:', planSlug);
+            // Log account creation activity
+            try {
+              await activityService.logAccountCreated(userId);
+              await activityService.logPlanAdded(userId, planSlug, monthlyAmount);
+            } catch (logErr) {
+              console.warn('[Webhook] Failed to log account creation/plan activity:', logErr);
+            }
           }
         } else {
-          console.warn(
-            '[Webhook] Missing planId, monthlyAmount, or creditLimit. Skipping booster account insert.'
-          );
+          console.warn('[Webhook] Missing planId, monthlyAmount, or creditLimit. Skipping booster account insert.');
         }
 
-        // Insert payment record with stripe_checkout_id and payment_type
-        if (planSlug) {
-          const paymentData = {
-            user_id: userId,
-            stripe_checkout_id: session.id,
-            amount: session.amount_total || null,
-            currency: session.currency || null,
-            status: 'completed',
-            created_at: new Date().toISOString(),
-            plan_slug: planSlug,
-            payment_type: 'subscription',
-            stripe_customer_id:
-              typeof session.customer === 'string'
-                ? session.customer
-                : (session.customer?.id ?? null),
-          };
-          console.log(
-            '[Webhook] Attempting Supabase insert (payments):',
-            paymentData
-          );
-          const { error: paymentError } = await supabase
-            .from('payments')
-            .insert(paymentData);
-          if (paymentError) {
-            console.error(
-              '[Webhook] Supabase insert error (payments):',
-              paymentError
-            );
-          } else {
-            console.log(
-              '[Webhook] Inserted payment for user:',
-              userId,
-              'checkout:',
-              session.id
-            );
-          }
-        } else {
-          console.warn('[Webhook] Missing planSlug. Skipping payment insert.');
-        }
+        // Removed payment insert logic from checkout.session.completed handler. Payment records are now only inserted in invoice.paid handler.
 
         // Update Stripe customer name if fullName is available and not null/empty
         if (
@@ -535,7 +562,7 @@ break;
               .eq('booster_account_id', boosterAccount.id)
               .eq('status', 'completed')
               .eq('payment_type', 'subscription');
-            if (!paymentsError && payments && payments.length === 2) {
+            if (!paymentsError && payments && payments.length >= 2) {
               // Check if user was referred
               const { data: referred, error: referredError } = await supabase
                 .from('referred_users')

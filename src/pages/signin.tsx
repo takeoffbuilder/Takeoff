@@ -80,32 +80,30 @@ export default function SignInPage() {
       });
 
       // Fetch affiliate and subscriber status
+      // Check affiliate status
       const statusRes = await fetch(`/api/affiliate/status?userId=${user.id}`);
       const statusData = await statusRes.json();
-      const isAffiliate = statusData.status === 'active';
-      // Check if user is a subscriber (has at least one active booster account)
+      const isAffiliate =
+        statusData.status &&
+        (statusData.status.toLowerCase() === 'approved' ||
+          statusData.status.toLowerCase() === 'active');
+      // Check subscriber status
       let isSubscriber = false;
       try {
-        const accountsRes = await fetch(
-          `/api/booster/accounts?userId=${user.id}`
+        const subStatusRes = await fetch(
+          `/api/subscription/status?userId=${user.id}`
         );
-        const accountsData = await accountsRes.json();
-        isSubscriber =
-          Array.isArray(accountsData.accounts) &&
-          accountsData.accounts.some(
-            (a: unknown) =>
-              typeof a === 'object' &&
-              a !== null &&
-              'status' in a &&
-              (a as { status?: string }).status === 'active'
-          );
+        const subStatusData = await subStatusRes.json();
+        isSubscriber = !!subStatusData.isSubscriber;
       } catch {}
 
-      // Redirect logic
-      if (isAffiliate && !isSubscriber) {
+      // Redirect logic: dual-role users always go to dashboard first
+      if (isSubscriber) {
+        router.push('/dashboard');
+      } else if (isAffiliate) {
         router.push('/affiliate-dashboard');
       } else {
-        router.push('/dashboard');
+        router.push('/');
       }
     } catch (error: unknown) {
       console.error('Sign in error:', error);

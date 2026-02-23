@@ -26,10 +26,32 @@ if (typeof window !== 'undefined') {
   // Expose supabase for browser console debugging
   window.supabase = supabase;
 }
+
 export function LandingPage() {
   const router = useRouter();
   const [referralCode, setReferralCode] = useState<string | null>(null);
 
+  // Unified handler for main CTAs (except affiliate)
+  const handleUnifiedSignup = async () => {
+    let isAdminUser = false;
+    try {
+      const adminModule = await import('@/services/adminService');
+      isAdminUser = await adminModule.isAdmin();
+    } catch {}
+    let refCode = referralCode;
+    if (!refCode && typeof window !== 'undefined') {
+      refCode = localStorage.getItem('pendingReferralCode') || undefined;
+    }
+    const signupHref = refCode
+      ? `/signup?ref=${encodeURIComponent(refCode)}`
+      : '/signup';
+    if (isAdminUser) {
+      router.push('/admin');
+      return;
+    }
+    router.push(signupHref);
+  };
+  // ...existing code...
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -185,7 +207,7 @@ export function LandingPage() {
                   </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex flex-col sm:flex-row gap-n4">
                   <Link href={signupHref} className="group">
                     <Button
                       size="lg"
@@ -386,15 +408,14 @@ export function LandingPage() {
             </div>
 
             <div className="text-center mt-12">
-              <Link href={signupHref} className="group inline-block">
-                <Button
-                  size="lg"
-                  className="h-14 px-10 text-lg font-semibold bg-gradient-to-r from-brand-sky-blue to-brand-sky-blue-light hover:from-brand-sky-blue-light hover:to-brand-sky-blue text-white shadow-2xl shadow-brand-sky-blue/40 hover:shadow-brand-sky-blue/60 transition-all duration-300 hover:scale-105"
-                >
-                  Get Started Now
-                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
+              <Button
+                size="lg"
+                className="h-14 px-10 text-lg font-semibold bg-gradient-to-r from-brand-sky-blue to-brand-sky-blue-light hover:from-brand-sky-blue-light hover:to-brand-sky-blue text-white shadow-2xl shadow-brand-sky-blue/40 hover:shadow-brand-sky-blue/60 transition-all duration-300 hover:scale-105"
+                onClick={handleUnifiedSignup}
+              >
+                Get Started Now
+                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
             </div>
           </section>
 
@@ -538,15 +559,14 @@ export function LandingPage() {
             </div>
 
             <div className="text-center mt-12">
-              <Link href={signupHref} className="group inline-block">
-                <Button
-                  size="lg"
-                  className="h-14 px-10 text-lg font-semibold bg-gradient-to-r from-brand-sky-blue to-brand-sky-blue-light hover:from-brand-sky-blue-light hover:to-brand-sky-blue text-white shadow-2xl shadow-brand-sky-blue/40 hover:shadow-brand-sky-blue/60 transition-all duration-300 hover:scale-105"
-                >
-                  Join Now – Start Building Credit Today
-                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
+              <Button
+                size="lg"
+                className="h-14 px-10 text-lg font-semibold bg-gradient-to-r from-brand-sky-blue to-brand-sky-blue-light hover:from-brand-sky-blue-light hover:to-brand-sky-blue text-white shadow-2xl shadow-brand-sky-blue/40 hover:shadow-brand-sky-blue/60 transition-all duration-300 hover:scale-105"
+                onClick={handleUnifiedSignup}
+              >
+                Join Now – Start Building Credit Today
+                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
             </div>
           </section>
 
@@ -598,19 +618,20 @@ export function LandingPage() {
             </div>
 
             {/* Button moved outside .mb-16 for consistent spacing */}
-            <div className="text-center mt-8 mb-0">
-              <Link
-                href="/affiliate-email-setup"
-                className="group inline-block"
+            <div className="flex justify-center mt-8 mb-0">
+              <button
+                type="button"
+                className="h-14 px-10 text-lg font-semibold bg-gradient-to-r from-brand-sky-blue to-brand-sky-blue-light text-white shadow-2xl shadow-brand-sky-blue/40 hover:shadow-brand-sky-blue/60 transition-all duration-300 hover:scale-105 group rounded-lg flex items-center justify-center"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('affiliateOnly', '1');
+                    window.location.href = '/verify-email';
+                  }
+                }}
               >
-                <Button
-                  size="lg"
-                  className="h-14 px-10 text-lg font-semibold bg-gradient-to-r from-brand-sky-blue to-brand-sky-blue-light text-white shadow-2xl shadow-brand-sky-blue/40 hover:shadow-brand-sky-blue/60 transition-all duration-300 hover:scale-105"
-                >
-                  Become an Affiliate
-                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
+                Become an Affiliate
+                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </button>
             </div>
           </section>
 
@@ -678,15 +699,15 @@ export function LandingPage() {
                     Off.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                    <Link href={signupHref} className="group">
-                      <Button
-                        size="lg"
-                        className="h-14 px-10 text-lg font-semibold bg-gradient-to-r from-brand-sky-blue to-brand-sky-blue-light hover:from-brand-sky-blue-light hover:to-brand-sky-blue text-white shadow-2xl shadow-brand-sky-blue/40 hover:shadow-brand-sky-blue/60 transition-all duration-300 hover:scale-105"
-                      >
-                        Start Building Now
-                        <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                      </Button>
-                    </Link>
+                    <Button
+                      size="lg"
+                      className="h-14 px-10 text-lg font-semibold bg-gradient-to-r from-brand-sky-blue to-brand-sky-blue-light hover:from-brand-sky-blue-light hover:to-brand-sky-blue text-white shadow-2xl shadow-brand-sky-blue/40 hover:shadow-brand-sky-blue/60 transition-all duration-300 hover:scale-105"
+                      onClick={handleUnifiedSignup}
+                    >
+                      Start Building Now
+                      <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+
                     <Button
                       size="lg"
                       variant="outline"

@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { boosterAccountService } from '@/services/boosterAccountService';
 import { authService } from '@/services/authService';
 import { courseService, AVAILABLE_COURSES } from '@/services/courseService';
+import { activityService } from '@/services/activityService';
 import { supabase } from '@/integrations/supabase/client';
 
 type CourseStatus = 'available' | 'downloaded' | 'locked';
@@ -156,6 +157,7 @@ export default function MyCoursesPage() {
         },
         body: JSON.stringify({ courseSlug }),
       });
+      console.log('API response:', resp);
       if (!resp.ok) {
         const err = await resp
           .json()
@@ -163,11 +165,43 @@ export default function MyCoursesPage() {
         throw new Error(err.error || 'Failed to get download URL');
       }
       const { url, mode, filename } = await resp.json();
+      console.log('Parsed API response:', { url, mode, filename });
 
-      // 2) Optimistically update UI (server already recorded download)
+      // 2) Write to downloaded_courses table
+      if (!userId) {
+        toast({
+          title: 'Authentication Required',
+          description: 'Please sign in again to download courses.',
+          variant: 'destructive',
+        });
+        router.push('/signin');
+        return;
+      }
+
+      await courseService.markCourseAsDownloaded({
+        user_id: userId,
+        course_slug: courseSlug,
+        course_title: fileName,
+        downloaded_at: new Date().toISOString(),
+      });
+
+      // 3) Log activity
+      if (!userId) {
+        toast({
+          title: 'Authentication Required',
+          description: 'Please sign in again to download courses.',
+          variant: 'destructive',
+        });
+        router.push('/signin');
+        return;
+      }
+
+      await activityService.logCourseDownloaded(userId, fileName);
+
+      // 4) Optimistically update UI
       setDownloadedSlugs((prev) => [...prev, courseSlug]);
 
-      // 3) Trigger a download. For signed URLs (cross-origin), the API sets
+      // 5) Trigger a download. For signed URLs (cross-origin), the API sets
       // Content-Disposition=attachment via Supabase 'download' option.
       // For same-origin public URLs, use an anchor with download attribute.
       const isSameOrigin =

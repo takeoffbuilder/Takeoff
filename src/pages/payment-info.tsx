@@ -2,7 +2,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { StarField } from '@/components/StarField';
 import { ArrowRight, CreditCard } from 'lucide-react';
 import { useRouter } from 'next/router';
@@ -268,22 +267,14 @@ export default function PaymentInfoPage() {
             </div>
 
             <div className="flex items-center space-x-3 bg-brand-midnight/30 p-4 rounded-lg border border-brand-sky-blue/20">
-              <Checkbox
-                id="autoPay"
-                checked={formData.autoPayEnabled}
-                onCheckedChange={(checked) =>
-                  handleInputChange('autoPayEnabled', checked === true)
-                }
-                className="border-brand-sky-blue/50 data-[state=checked]:bg-brand-sky-blue data-[state=checked]:border-brand-sky-blue"
-              />
               <Label
                 htmlFor="autoPay"
                 className="text-brand-white cursor-pointer flex-1"
               >
-                Enable Auto Pay
+                Auto Pay Enabled
                 <p className="text-sm text-brand-white/60 mt-1">
-                  Automatically process payments each month to keep your credit
-                  building on track
+                  Auto Pay is set up through the payment processor to ensure
+                  payments each month to keep your credit building on track
                 </p>
               </Label>
             </div>

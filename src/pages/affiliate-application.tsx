@@ -7,7 +7,7 @@ export default function AffiliateApplicationPage() {
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
-    dob: '',
+    dob: '', // MM/DD/YYYY
     phone: '',
     ssn_last_four: '',
     address: '',
@@ -31,6 +31,17 @@ export default function AffiliateApplicationPage() {
     if (!form.country.trim()) return 'Country is required.';
     return '';
   };
+
+  // MM/DD/YYYY validation
+  // US phone validation
+  const validatePhone = (phone: string) => {
+    // Accept (xxx) xxx-xxxx, xxx-xxx-xxxx, xxx.xxx.xxxx, xxx xxx xxxx, or just digits
+    return /^(\(\d{3}\)\s?|\d{3}[-.\s]?)\d{3}[-.\s]?\d{4}$/.test(phone.trim());
+  };
+  const validateDOB = (dob: string) => {
+    // Accept MM/DD/YYYY only
+    return /^\d{2}\/\d{2}\/\d{4}$/.test(dob.trim());
+  };
   // ...existing code...
   useEffect(() => {
     async function fetchEmail() {
@@ -47,10 +58,32 @@ export default function AffiliateApplicationPage() {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === 'dob') {
+      // Remove all non-digits
+      let digits = value.replace(/[^\d]/g, '');
+      // Insert slashes as needed
+      if (digits.length > 2)
+        digits = digits.slice(0, 2) + '/' + digits.slice(2);
+      if (digits.length > 5)
+        digits = digits.slice(0, 5) + '/' + digits.slice(5);
+      // Limit to 10 chars (MM/DD/YYYY)
+      digits = digits.slice(0, 10);
+      setForm({ ...form, dob: digits });
+    } else {
+      setForm({ ...form, [name]: value });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    // Phone validation
+    if (!validatePhone(form.phone)) {
+      setError(
+        'Phone number must be valid (e.g., (123) 456-7890 or 123-456-7890).'
+      );
+      setSubmitting(false);
+      return;
+    }
     e.preventDefault();
     setSubmitting(true);
     setError('');
@@ -61,10 +94,9 @@ export default function AffiliateApplicationPage() {
       setSubmitting(false);
       return;
     }
-    // Enforce MM/DD/YYYY format for DOB
-    const dobPattern = /^\d{2}\/\d{2}\/\d{4}$/;
-    if (!dobPattern.test(form.dob)) {
-      setError('Date of Birth must be in MM/DD/YYYY format.');
+    // DOB validation
+    if (!validateDOB(form.dob)) {
+      setError('Date of birth must be in MM/DD/YYYY format.');
       setSubmitting(false);
       return;
     }
@@ -155,29 +187,30 @@ export default function AffiliateApplicationPage() {
             id="dob"
             name="dob"
             type="text"
-            placeholder="Date of Birth (MM/DD/YYYY)"
+            placeholder="MM/DD/YYYY"
             value={form.dob}
             onChange={handleChange}
             required
             autoComplete="bday"
-            pattern="^\\d{2}/\\d{2}/\\d{4}$"
+            pattern="\d{2}/\d{2}/\d{4}"
             title="MM/DD/YYYY"
             className="w-full px-4 py-2 rounded bg-brand-midnight text-white"
           />
+          <p className="text-xs text-brand-sky-blue mt-1">Format: MM/DD/YYYY</p>
         </div>
         <div className="mb-2">
           <input
             id="phone"
             name="phone"
-            type="tel"
-            placeholder="Phone Number (10 digits)"
+            type="text"
+            placeholder="Phone Number"
             value={form.phone}
             onChange={handleChange}
             required
             autoComplete="tel"
-            pattern="^\\d{10}$"
-            title="Enter 10 digit phone number"
-            className="w-full px-4 py-2 rounded bg-brand-midnight text-white"
+            pattern="(\\(\\d{3}\\)\\s?|\\d{3}[-.\\s]?)\\d{3}[-.\\s]?\\d{4}"
+            title="Phone number (e.g., (123) 456-7890 or 123-456-7890)"
+            className="w-full px-4 py-2 rounded bg-brand-midnight text-white mb-2"
           />
         </div>
         <div className="relative mb-2">

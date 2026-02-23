@@ -224,7 +224,7 @@ try {
         { id: profileId, stripeAccountId: account.id }
       );
 
-      // Also update the profiles table with onboarding link and personal info
+      // Also update the profiles table with onboarding link, personal info, and is_affiliate: true
       const { data: profileUpdateData, error: profileError } = await admin
         .from('profiles')
         .update({
@@ -239,6 +239,7 @@ try {
           city,
           state,
           postal_code,
+          is_affiliate: true,
         })
         .eq('id', profileId)
         .select();
@@ -250,7 +251,7 @@ try {
         console.error('[Affiliate] Supabase profile update did not affect any rows:', { id: profileId });
         return NextResponse.json({ error: 'Profile not found or not updated' }, { status: 404 });
       } else {
-        console.log('[Affiliate] Updated profiles with onboarding link and personal info:', { id: profileId, email });
+        console.log('[Affiliate] Updated profiles with onboarding link, personal info, and is_affiliate: true:', { id: profileId, email });
       }
     } catch (err) {
       console.error('[Affiliate] Supabase update error:', err);
