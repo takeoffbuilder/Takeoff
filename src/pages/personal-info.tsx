@@ -207,18 +207,6 @@ export default function PersonalInfoPage() {
         console.warn('Could not prefill personal info from DB:', e);
       }
 
-      // Merge any locally-saved draft last (so in-progress edits win)
-      const savedData = localStorage.getItem(`personalInfo_${user.id}`);
-      if (savedData) {
-        try {
-          const parsed = JSON.parse(savedData);
-          Object.assign(newFormData, parsed);
-          newFormData.email = user.email || '';
-        } catch (error) {
-          console.error('Error loading saved data:', error);
-        }
-      }
-
       setFormData(newFormData);
       setDataLoaded(true);
     };
@@ -396,8 +384,6 @@ export default function PersonalInfoPage() {
 
   const saveToDbAndNext = async (finalData: PersonalInfoForm) => {
     if (!userId) return;
-    // Persist draft locally too
-    localStorage.setItem(`personalInfo_${userId}`, JSON.stringify(finalData));
 
     // Build DB payload
     const onlyDigits = (s: string) => s.replace(/\D/g, '');
@@ -486,7 +472,7 @@ export default function PersonalInfoPage() {
         duration: 2000,
       });
       setTimeout(() => {
-        router.push('/payment-info');
+        router.push('/confirmation');
       }, 2000);
     } catch (error: unknown) {
       console.error('Failed saving personal info:', error);

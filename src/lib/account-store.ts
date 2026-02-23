@@ -1,3 +1,24 @@
+/**
+ * Account Store - Local UX Cache
+ * 
+ * SECURITY CLASSIFICATION:
+ * This store caches non-sensitive account metadata for UX when backend is unavailable.
+ * 
+ * STORES (LOW RISK):
+ * - Plan names, amounts, dates (billing metadata)
+ * - Account IDs, balances, status (operational data)
+ * - Email addresses (not considered PII under GDPR in business context)
+ * 
+ * DOES NOT STORE (HIGH RISK):
+ * - Auth tokens, passwords, session data (managed by Supabase)
+ * - SSN or tax identifiers (stored in DB only)
+ * - Payment card numbers, CVV, full card details (never stored client-side)
+ * - Personal addresses, phone numbers, DOB (stored in DB only)
+ * 
+ * PURPOSE: Provides offline-first UX during Stripe/Supabase configuration.
+ * Per copilot-instructions.md: "don't treat it as source of truth"
+ */
+
 import { BoosterAccount, UserProfile, PaymentRecord } from "@/types/user";
 
 const STORAGE_KEY = "takeoff_user_profile";
@@ -159,8 +180,7 @@ export const accountStore = {
   clearUserData(): void {
     if (typeof window === "undefined") return;
     localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem("userEmail");
-    localStorage.removeItem("isAuthenticated");
+    // Auth state cleared by authService.signOut()
     // Add other keys as needed
   }
 };

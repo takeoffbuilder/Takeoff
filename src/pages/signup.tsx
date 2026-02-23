@@ -163,8 +163,8 @@ export default function SignUpPage() {
 
       // Success - store normalized email and redirect to verification
       if (typeof window !== 'undefined') {
-        localStorage.setItem('userEmail', normalizedEmail);
-        localStorage.setItem('pendingEmailVerification', 'true');
+        // Auth state managed by Supabase session
+        // Mark that email verification is pending via user metadata/state
       }
 
       setTimeout(() => {

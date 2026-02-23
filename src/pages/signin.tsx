@@ -69,9 +69,7 @@ export default function SignInPage() {
         throw new Error('Sign in failed. Please check your credentials.');
       }
 
-      // Store authentication in localStorage for backward compatibility
-      localStorage.setItem('userEmail', formData.email);
-      localStorage.setItem('isAuthenticated', 'true');
+      // Auth state is managed by Supabase session - no localStorage needed
 
       toast({
         title: 'Welcome back!',

@@ -206,8 +206,9 @@ export default function PaymentPage() {
           return;
         }
 
-        // Clear selected plan before redirect
+        // Clear selected plan from both session and local storage before redirect
         sessionStorage.removeItem('selectedPlan');
+        localStorage.removeItem('selectedPlan');
 
         // Chrome-hardening: prefer direct URL navigation first to avoid
         // any potential user-gesture or popup-policy edge cases.

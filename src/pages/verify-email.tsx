@@ -50,18 +50,14 @@ export default function VerifyEmailPage() {
 
       if (user) {
         if (typeof window !== 'undefined') {
-          localStorage.setItem('userEmail', user.email || '');
-          localStorage.setItem('isAuthenticated', 'true');
-          localStorage.removeItem('pendingEmailVerification');
+          // Auth state managed by Supabase session
         }
         // Attach referral if present (after verification and authentication)
         attachReferralIfPresent().finally(() => {
           setTimeout(() => {
-            if (
-              typeof window !== 'undefined' &&
-              localStorage.getItem('affiliateOnly') === '1'
-            ) {
-              localStorage.removeItem('affiliateOnly');
+            // Check if affiliate flow via URL param
+            const isAffiliateFlow = router.query.affiliate === '1';
+            if (isAffiliateFlow) {
               router.push('/affiliate-application');
             } else {
               router.push('/choose-plan');

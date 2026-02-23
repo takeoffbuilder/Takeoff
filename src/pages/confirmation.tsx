@@ -28,14 +28,6 @@ interface PersonalInfo {
   dateOfBirth: string;
 }
 
-interface PaymentInfo {
-  cardholderName: string;
-  cardNumber: string;
-  expirationDate: string;
-  cvv: string;
-  autoPayEnabled: boolean;
-}
-
 interface SelectedPlan {
   planName: string;
   monthlyAmount: number;
@@ -48,7 +40,6 @@ export default function ConfirmationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo | null>(null);
-  const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SelectedPlan | null>(null);
 
   useEffect(() => {
@@ -69,11 +60,12 @@ export default function ConfirmationPage() {
 
       setUserId(user.id);
 
-      const personal = localStorage.getItem(`personalInfo_${user.id}`);
-      const payment = localStorage.getItem(`paymentInfo_${user.id}`);
+      // Load personal info from database instead of localStorage
+      const personalInfoFromDb = await profileService.getPersonalInfo(user.id);
+      const profileFromDb = await profileService.getProfile(user.id);
       const plan = localStorage.getItem('selectedPlan');
 
-      if (!personal || !payment || !plan) {
+      if (!personalInfoFromDb || !profileFromDb || !plan) {
         toast({
           title: 'Missing Information',
           description: 'Please complete all previous steps',
@@ -84,8 +76,20 @@ export default function ConfirmationPage() {
       }
 
       try {
-        setPersonalInfo(JSON.parse(personal));
-        setPaymentInfo(JSON.parse(payment));
+        // Map database fields to PersonalInfo interface
+        const personalData: PersonalInfo = {
+          firstName: personalInfoFromDb.first_name || '',
+          lastName: personalInfoFromDb.last_name || '',
+          streetAddress: personalInfoFromDb.address || '',
+          city: personalInfoFromDb.city || '',
+          state: personalInfoFromDb.state || '',
+          zipCode: personalInfoFromDb.zip_code || '',
+          phoneNumber: personalInfoFromDb.phone || '',
+          email: profileFromDb.email || user.email || '',
+          ssn: personalInfoFromDb.ssn_last_four || '', // Only last 4 digits from DB
+          dateOfBirth: personalInfoFromDb.date_of_birth || '',
+        };
+        setPersonalInfo(personalData);
         setSelectedPlan(JSON.parse(plan));
       } catch (error) {
         console.error('Error loading data:', error);
@@ -196,11 +200,6 @@ export default function ConfirmationPage() {
     return `***-**-${numbers.slice(-4)}`;
   };
 
-  const maskCardNumber = (cardNumber: string) => {
-    const numbers = cardNumber.replace(/\D/g, '');
-    return `**** **** **** ${numbers.slice(-4)}`;
-  };
-
   const getPlanFeatures = (planName: string) => {
     const features: { [key: string]: string[] } = {
       'Starter Boost': [
@@ -234,7 +233,7 @@ export default function ConfirmationPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPlan || !userId || !personalInfo || !paymentInfo) return;
+    if (!selectedPlan || !userId || !personalInfo) return;
 
     try {
       setIsSubmitting(true);
@@ -270,7 +269,7 @@ export default function ConfirmationPage() {
           state: personalInfo.state,
           zip_code: personalInfo.zipCode,
           phone: personalInfo.phoneNumber,
-          ssn_last_four: personalInfo.ssn.slice(-4),
+          ssn_last_four: personalInfo.ssn, // Already last 4 digits from DB
           date_of_birth: formattedDateOfBirth, // Use converted format
         });
         console.log('✅ Updated existing personal info');
@@ -285,7 +284,7 @@ export default function ConfirmationPage() {
           state: personalInfo.state,
           zip_code: personalInfo.zipCode,
           phone: personalInfo.phoneNumber,
-          ssn_last_four: personalInfo.ssn.slice(-4),
+          ssn_last_four: personalInfo.ssn, // Already last 4 digits from DB
           date_of_birth: formattedDateOfBirth, // Use converted format
         });
         console.log('✅ Created new personal info');
@@ -334,6 +333,12 @@ export default function ConfirmationPage() {
             'Failed to create checkout session. Please ensure Stripe is properly configured.'
         );
       }
+
+      // Clear stored data from session and local storage
+      sessionStorage.removeItem('selectedPlan');
+      localStorage.removeItem('selectedPlan');
+      localStorage.removeItem(`personalInfo_${userId}`);
+      localStorage.removeItem(`paymentInfo_${userId}`);
 
       // 5. Redirect to Stripe Checkout using Stripe.js (preferred)
       try {
@@ -386,7 +391,7 @@ export default function ConfirmationPage() {
     }
   };
 
-  if (!selectedPlan || !personalInfo || !paymentInfo) {
+  if (!selectedPlan || !personalInfo) {
     return (
       <div className="relative min-h-screen w-full overflow-hidden bg-gradient-to-br from-brand-midnight via-brand-charcoal to-brand-midnight flex items-center justify-center">
         <StarField />
@@ -530,41 +535,16 @@ export default function ConfirmationPage() {
               </div>
 
               <div className="bg-brand-midnight/50 rounded-xl p-6 border border-brand-sky-blue/20">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-semibold text-brand-white flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-brand-sky-blue" />
-                    Payment Information
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => router.push('/payment-info')}
-                    className="text-brand-sky-blue hover:text-brand-sky-blue-light hover:bg-brand-sky-blue/10"
-                  >
-                    <Edit className="w-4 h-4 mr-1" />
-                    Edit
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-brand-white/80">
-                  <div>
-                    <p className="text-brand-white/60 text-sm">
-                      Cardholder Name
-                    </p>
-                    <p className="font-medium">{paymentInfo.cardholderName}</p>
-                  </div>
-                  <div>
-                    <p className="text-brand-white/60 text-sm">Card Number</p>
-                    <p className="font-medium">
-                      {maskCardNumber(paymentInfo.cardNumber)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-brand-white/60 text-sm">
-                      Expiration Date
-                    </p>
-                    <p className="font-medium">{paymentInfo.expirationDate}</p>
-                  </div>
+                <div className="bg-brand-sky-blue/10 border border-brand-sky-blue/30 rounded-lg p-4">
+                  <p className="text-brand-white/80 text-sm">
+                    <strong>
+                      Payment will be collected securely through Stripe
+                      Checkout.
+                    </strong>
+                    <br />
+                    After submitting, you'll be redirected to enter your payment
+                    information on Stripe's secure payment page.
+                  </p>
                 </div>
               </div>
 

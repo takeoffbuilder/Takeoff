@@ -129,10 +129,7 @@ export default function ChoosePlanPage() {
   const [user, setUser] = useState(null);
   // Redirect affiliate-only users away from this page
   useEffect(() => {
-    const isAffiliate =
-      router.query.affiliate === '1' ||
-      (typeof window !== 'undefined' &&
-        localStorage.getItem('affiliateOnly') === '1');
+    const isAffiliate = router.query.affiliate === '1';
     if (isAffiliate) {
       router.replace('/affiliate-explainer');
     }

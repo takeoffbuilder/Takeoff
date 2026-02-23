@@ -624,9 +624,7 @@ export function LandingPage() {
                 className="h-14 px-10 text-lg font-semibold bg-gradient-to-r from-brand-sky-blue to-brand-sky-blue-light text-white shadow-2xl shadow-brand-sky-blue/40 hover:shadow-brand-sky-blue/60 transition-all duration-300 hover:scale-105 group rounded-lg flex items-center justify-center"
                 onClick={() => {
                   if (typeof window !== 'undefined') {
-                    localStorage.setItem('affiliateOnly', '1');
-                    window.location.href = '/verify-email';
-                  }
+                    window.location.href = '/affiliate-explainer';\n                  }
                 }}
               >
                 Become an Affiliate

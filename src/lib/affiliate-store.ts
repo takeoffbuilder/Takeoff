@@ -1,4 +1,13 @@
 
+/**
+ * SECURITY NOTE: This store caches affiliate metrics for local UX when backend is unavailable.
+ * Does NOT store: auth tokens, passwords, SSN, payment card data.
+ * Stores: referral metrics, earnings summaries (non-sensitive business data).
+ * User identification now uses Supabase session instead of localStorage.
+ */
+
+import { supabase } from '@/integrations/supabase/client';
+
 interface AffiliateData {
   userId: string;
   affiliateId: string;
@@ -27,28 +36,31 @@ class AffiliateStore {
     return Math.abs(hash).toString(36).toUpperCase().substring(0, 8);
   }
 
-  getAffiliateData(): AffiliateData | null {
+  async getAffiliateData(): Promise<AffiliateData | null> {
     if (typeof window === "undefined") return null;
     
-    const userEmail = localStorage.getItem("userEmail");
-    if (!userEmail) return null;
+    // Get user email from Supabase session instead of localStorage
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.email) return null;
 
     const stored = localStorage.getItem(this.storageKey);
     if (!stored) return null;
 
     const allData = JSON.parse(stored);
-    return allData[userEmail] || null;
+    return allData[user.email] || null;
   }
 
-  becomeAffiliate(): AffiliateData {
+  async becomeAffiliate(): Promise<AffiliateData> {
     if (typeof window === "undefined") {
       throw new Error("Cannot become affiliate on server");
     }
 
-    const userEmail = localStorage.getItem("userEmail");
-    if (!userEmail) {
-      throw new Error("User email not found");
+    // Get user email from Supabase session
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.email) {
+      throw new Error("User not authenticated");
     }
+    const userEmail = user.email;
 
     const affiliateId = this.generateAffiliateId(userEmail);
     const referralLink = `https://takeoffcreditbuilder.com/ref/${affiliateId}`;
@@ -73,8 +85,8 @@ class AffiliateStore {
     return affiliateData;
   }
 
-  addMockReferral(): AffiliateData {
-    const affiliateData = this.getAffiliateData();
+  async addMockReferral(): Promise<AffiliateData> {
+    const affiliateData = await this.getAffiliateData();
     if (!affiliateData) {
       throw new Error("Not an affiliate");
     }
@@ -114,8 +126,10 @@ class AffiliateStore {
     affiliateData.totalEarnings = affiliateData.referrals.reduce((sum, r) => sum + r.earnings, 0);
     affiliateData.pendingPayout = affiliateData.totalEarnings * 0.33;
 
-    const userEmail = localStorage.getItem("userEmail");
-    if (!userEmail) throw new Error("User email not found");
+    // Get user email from Supabase session
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.email) throw new Error("User not authenticated");
+    const userEmail = user.email;
 
     const stored = localStorage.getItem(this.storageKey);
     const allData = stored ? JSON.parse(stored) : {};
@@ -125,11 +139,13 @@ class AffiliateStore {
     return affiliateData;
   }
 
-  clearAffiliateData(): void {
+  async clearAffiliateData(): Promise<void> {
     if (typeof window === "undefined") return;
 
-    const userEmail = localStorage.getItem("userEmail");
-    if (!userEmail) return;
+    // Get user email from Supabase session
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.email) return;
+    const userEmail = user.email;
 
     const stored = localStorage.getItem(this.storageKey);
     if (!stored) return;

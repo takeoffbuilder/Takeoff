@@ -583,8 +583,7 @@ export default function DashboardPage() {
       await authService.signOut();
 
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('userEmail');
-        localStorage.removeItem('isAuthenticated');
+        // Auth state cleared by authService.signOut()
         sessionStorage.clear();
       }
 

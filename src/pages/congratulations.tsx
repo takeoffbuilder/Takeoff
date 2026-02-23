@@ -25,9 +25,9 @@ export default function CongratulationsPage() {
   const handleContinue = () => {
     setLoading(true);
 
-    // Route to payment info page to collect payment details BEFORE creating account
+    // Route to payment page for add-on accounts (Stripe Checkout), or personal info for initial signup
     if (isAddingAccount) {
-      router.push('/payment-info?mode=add');
+      router.push('/payment');
     } else {
       router.push('/personal-info');
     }

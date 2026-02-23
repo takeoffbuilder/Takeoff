@@ -43,9 +43,7 @@ export default function AuthCallbackPage() {
 
         if (sessionData.user) {
           if (typeof window !== 'undefined') {
-            localStorage.setItem('userEmail', sessionData.user.email || '');
-            localStorage.setItem('isAuthenticated', 'true');
-            localStorage.removeItem('pendingEmailVerification');
+            // Auth state managed by Supabase session
 
             // Referral code tracking and routing
             const urlParams = new URLSearchParams(window.location.search);

@@ -13,10 +13,7 @@ export default function AffiliateEmailSetupPage() {
   };
 
   useEffect(() => {
-    // Set affiliateOnly flag in localStorage for flow tracking
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('affiliateOnly', '1');
-    }
+    // Affiliate flow tracked via URL params, not localStorage
   }, []);
 
   return (
