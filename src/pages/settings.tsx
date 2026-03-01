@@ -21,7 +21,6 @@ import { authService } from '@/services/authService';
 import { profileService } from '@/services/profileService';
 import { boosterAccountService } from '@/services/boosterAccountService';
 import { addressService } from '@/services/addressService';
-import { isAdmin } from '@/services/adminService';
 
 import {
   AlertDialog,
@@ -60,7 +59,6 @@ export default function SettingsPage() {
   const [loadingAffiliate, setLoadingAffiliate] = useState(true);
 
   const router = useRouter();
-  const [showAdminButton, setShowAdminButton] = useState(false);
 
   useEffect(() => {
     async function fetchAffiliate() {
@@ -78,18 +76,6 @@ export default function SettingsPage() {
     fetchAffiliate();
   }, []);
 
-  useEffect(() => {
-    const checkAdmin = async () => {
-      const user = await authService.getCurrentUser();
-      if (user) {
-        const admin = await isAdmin(user.email);
-        setShowAdminButton(admin);
-      } else {
-        setShowAdminButton(false);
-      }
-    };
-    checkAdmin();
-  }, [router.asPath]);
   const handleCopyReferralLink = () => {
     if (affiliateLink) {
       navigator.clipboard.writeText(affiliateLink);
@@ -553,15 +539,6 @@ export default function SettingsPage() {
               <ArrowLeft className="h-4 w-4" />
               Back to Dashboard
             </Button>
-            {showAdminButton && (
-              <Button
-                onClick={() => router.push('/admin')}
-                variant="outline"
-                className="ml-4 text-white border-brand-sky-blue/30 hover:bg-brand-sky-blue/10 hover:text-brand-sky-blue-light"
-              >
-                Admin Dashboard
-              </Button>
-            )}
           </div>
         </header>
 

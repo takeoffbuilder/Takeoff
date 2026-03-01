@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { supabase } from '@/integrations/supabase/client';
 
 export function AdminLink() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);

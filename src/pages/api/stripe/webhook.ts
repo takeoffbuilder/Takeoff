@@ -156,9 +156,17 @@ export default async function handler(
               return res.status(500).json({ error: 'Failed to insert payment', details: paymentInsertError });
             } else {
               console.log('[Webhook] Inserted payment for user:', account.user_id, 'invoice:', invoice.id);
-              // Log payment activity
+              // Log payment activity using admin client
               try {
-                await activityService.logPaymentMade(account.user_id, paymentInsertPayload.amount, plan_slug);
+                const adminClient = createAdminClient();
+                await adminClient
+                  .from('activity_logs')
+                  .insert({
+                    user_id: account.user_id,
+                    activity_type: 'payment_made',
+                    description: `Payment of $${paymentInsertPayload.amount} processed`,
+                    metadata: { amount: paymentInsertPayload.amount, plan_name: plan_slug }
+                  });
               } catch (logErr) {
                 console.warn('[Webhook] Failed to log payment activity:', logErr);
               }
@@ -500,10 +508,24 @@ export default async function handler(
             console.error('[Webhook] Supabase insert error (user_booster_accounts):', boosterError);
           } else {
             console.log('[Webhook] Inserted user_booster_account for user:', userId, 'plan:', planSlug);
-            // Log account creation activity
+            // Log account creation activity using admin client
             try {
-              await activityService.logAccountCreated(userId);
-              await activityService.logPlanAdded(userId, planSlug, monthlyAmount);
+              const adminClient = createAdminClient();
+              await adminClient
+                .from('activity_logs')
+                .insert([
+                  {
+                    user_id: userId,
+                    activity_type: 'account_created',
+                    description: 'Account successfully created'
+                  },
+                  {
+                    user_id: userId,
+                    activity_type: 'plan_added',
+                    description: `Added ${planSlug} plan`,
+                    metadata: { plan_name: planSlug, amount: monthlyAmount }
+                  }
+                ]);
             } catch (logErr) {
               console.warn('[Webhook] Failed to log account creation/plan activity:', logErr);
             }

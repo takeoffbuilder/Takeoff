@@ -413,7 +413,7 @@ export default function ChoosePlanPage() {
                 All plans include a 30-day money-back guarantee. Cancel anytime.
               </p>
               {showAdminButton && (
-                <Link href="/admin">
+                <Link href="/admin/admin-emails">
                   <Button className="mt-4 bg-gradient-to-r from-brand-sky-blue to-brand-sky-blue-light text-white">
                     Admin Dashboard
                   </Button>

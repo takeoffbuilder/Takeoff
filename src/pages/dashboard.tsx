@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { Button } from '@/components/ui/button';
-// import { Input } from '@/components/ui/input';
-// import { getMyReferrer, buildReferralLink } from '@/services/referralService';
 import {
   Card,
   CardContent,
@@ -53,8 +51,6 @@ import {
   getPlanUtilizationRate,
 } from '@/lib/payment-schedule';
 import { AdminLink } from '@/components/AdminLink';
-import { isAdmin } from '@/services/adminService';
-import { supabase } from '@/integrations/supabase/client';
 
 interface BoosterAccount {
   id: string;
@@ -81,40 +77,11 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   // Affiliate state (Supabase)
   // Removed unused affiliateCode
-  // const [affiliateLink, setAffiliateLink] = useState<string | null>(null);
-  // const [copied, setCopied] = useState(false);
-  // Remove unused affiliateLink/copy logic
   const [isAffiliate, setIsAffiliate] = useState(false);
   const [isDualRole, setIsDualRole] = useState(false);
   const router = useRouter();
   const [isNavigating, setIsNavigating] = useState(false);
-  const [showAdminButton, setShowAdminButton] = useState(false);
   // Removed unused loadingAffiliate
-
-  // Removed fetchAffiliate useEffect and all setAffiliateLink/affiliateLink references
-
-  // More robust admin check: runs on route change and on auth state change
-  useEffect(() => {
-    let mounted = true;
-    const checkAdmin = async () => {
-      const user = await authService.getCurrentUser();
-      if (user) {
-        const admin = await isAdmin(user.email);
-        if (mounted) setShowAdminButton(admin);
-      } else {
-        if (mounted) setShowAdminButton(false);
-      }
-    };
-    checkAdmin();
-    // Listen for auth state changes (login, logout, signup)
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      checkAdmin();
-    });
-    return () => {
-      mounted = false;
-      listener?.subscription.unsubscribe();
-    };
-  }, [router.asPath]);
 
   useEffect(() => {
     async function fetchAffiliateAndDualRole() {
@@ -142,6 +109,32 @@ export default function DashboardPage() {
         console.log('isAffiliate:', affiliate);
         setIsAffiliate(!!affiliate);
 
+        if (affiliate) {
+          try {
+            const existingAffiliateActivity = (
+              await activityService.getUserActivities(user.id, 25)
+            ).some((log: any) => log.activity_type === 'affiliate_joined');
+
+            if (!existingAffiliateActivity) {
+              await activityService.logActivity({
+                user_id: user.id,
+                activity_type: 'affiliate_joined',
+                description: 'Became an affiliate',
+                metadata: {
+                  source: 'dashboard_backfill',
+                },
+              });
+            }
+            // Always refresh activities after affiliate status check to ensure 'became an affiliate' is visible
+            await loadDashboardData({ silent: true });
+          } catch (activityErr) {
+            console.warn(
+              'Could not ensure affiliate_joined activity:',
+              activityErr
+            );
+          }
+        }
+
         // Use isAffiliateOnly from API - true means affiliate-only (no subscription)
         const isAffiliateOnlyFromAPI = !!affiliateData?.isAffiliateOnly;
         console.log('isAffiliateOnly:', isAffiliateOnlyFromAPI);
@@ -156,14 +149,15 @@ export default function DashboardPage() {
       }
     }
     fetchAffiliateAndDualRole();
-  }, []);
+  }, [router.asPath]);
 
   // Redirect affiliate-only users to affiliate dashboard
   useEffect(() => {
-    if (isAffiliate && !isDualRole) {
+    const bypassAffiliateRedirect = router.query.fromAffiliate === '1';
+    if (isAffiliate && !isDualRole && !bypassAffiliateRedirect) {
       router.replace('/affiliate-dashboard');
     }
-  }, [isAffiliate, isDualRole, router]);
+  }, [isAffiliate, isDualRole, router, router.query.fromAffiliate]);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [accountToCancel, setAccountToCancel] = useState<string | null>(null);
@@ -436,7 +430,7 @@ export default function DashboardPage() {
       const stats = await boosterAccountService.getUserAccountStats(user.id);
       // Load recent activity
       try {
-        const logs = await activityService.getUserActivities(user.id, 10);
+        const logs = await activityService.getUserActivities(user.id, 5);
         setActivities(
           (logs || []).map((l: any) => ({
             id: l.id,
@@ -768,7 +762,7 @@ export default function DashboardPage() {
               )}
             </div>
             <div className="flex-1 flex justify-center">
-              {showAdminButton && <AdminLink />}
+              <AdminLink />
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -1132,7 +1126,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {activities.slice(0, 5).map((a) => (
+                    {activities.map((a) => (
                       <div
                         key={a.id}
                         className="flex items-start justify-between py-3 px-3 rounded-lg bg-brand-midnight/30 border border-brand-sky-blue/5"
@@ -1159,6 +1153,10 @@ export default function DashboardPage() {
                             if (type === 'course_downloaded')
                               return (
                                 <DownloadIcon className="h-5 w-5 text-brand-sky-blue" />
+                              );
+                            if (type === 'affiliate_joined')
+                              return (
+                                <TrendingUp className="h-5 w-5 text-green-400" />
                               );
                             return (
                               <Calendar className="h-5 w-5 text-gray-400" />

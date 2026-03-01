@@ -4,6 +4,8 @@ import usePlacesAutocomplete, { getGeocode } from 'use-places-autocomplete';
 
 const AddressAutocomplete = ({
   onSelect,
+  value,
+  onValueChange,
 }: {
   onSelect: (address: {
     street: string;
@@ -12,10 +14,12 @@ const AddressAutocomplete = ({
     zip: string;
     full: string;
   }) => void;
+  value?: string;
+  onValueChange?: (value: string) => void;
 }) => {
   const {
     ready,
-    value,
+    value: valueFromHook,
     setValue,
     suggestions: { status, data },
     clearSuggestions,
@@ -27,7 +31,9 @@ const AddressAutocomplete = ({
   });
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setValue(e.target.value);
+    const nextValue = e.target.value;
+    setValue(nextValue);
+    onValueChange?.(nextValue);
   };
 
   const handleSelect = (address: string) => {
@@ -74,7 +80,7 @@ const AddressAutocomplete = ({
   return (
     <div>
       <Input
-        value={value}
+        value={value ?? valueFromHook}
         onChange={handleInput}
         disabled={!ready}
         placeholder="Enter your address"

@@ -252,6 +252,33 @@ try {
         return NextResponse.json({ error: 'Profile not found or not updated' }, { status: 404 });
       } else {
         console.log('[Affiliate] Updated profiles with onboarding link, personal info, and is_affiliate: true:', { id: profileId, email });
+
+        // Log affiliate activity (idempotent: only insert if none exists yet)
+        const { data: existingAffiliateActivity } = await admin
+          .from('activity_logs')
+          .select('id')
+          .eq('user_id', profileId)
+          .eq('activity_type', 'affiliate_joined')
+          .limit(1)
+          .maybeSingle();
+
+        if (!existingAffiliateActivity) {
+          const { error: activityError } = await admin
+            .from('activity_logs')
+            .insert({
+              user_id: profileId,
+              activity_type: 'affiliate_joined',
+              description: 'Became an affiliate',
+              metadata: {
+                onboarding_status: 'started',
+                affiliate_status: 'pending',
+              },
+            });
+
+          if (activityError) {
+            console.warn('[Affiliate] Failed to log affiliate_joined activity:', activityError);
+          }
+        }
       }
     } catch (err) {
       console.error('[Affiliate] Supabase update error:', err);

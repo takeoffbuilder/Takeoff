@@ -1,7 +1,70 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { authService } from '@/services/authService';
+import { profileService } from '@/services/profileService';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
+
+const US_STATE_CODES: Record<string, string> = {
+  alabama: 'AL',
+  alaska: 'AK',
+  arizona: 'AZ',
+  arkansas: 'AR',
+  california: 'CA',
+  colorado: 'CO',
+  connecticut: 'CT',
+  delaware: 'DE',
+  florida: 'FL',
+  georgia: 'GA',
+  hawaii: 'HI',
+  idaho: 'ID',
+  illinois: 'IL',
+  indiana: 'IN',
+  iowa: 'IA',
+  kansas: 'KS',
+  kentucky: 'KY',
+  louisiana: 'LA',
+  maine: 'ME',
+  maryland: 'MD',
+  massachusetts: 'MA',
+  michigan: 'MI',
+  minnesota: 'MN',
+  mississippi: 'MS',
+  missouri: 'MO',
+  montana: 'MT',
+  nebraska: 'NE',
+  nevada: 'NV',
+  'new hampshire': 'NH',
+  'new jersey': 'NJ',
+  'new mexico': 'NM',
+  'new york': 'NY',
+  'north carolina': 'NC',
+  'north dakota': 'ND',
+  ohio: 'OH',
+  oklahoma: 'OK',
+  oregon: 'OR',
+  pennsylvania: 'PA',
+  'rhode island': 'RI',
+  'south carolina': 'SC',
+  'south dakota': 'SD',
+  tennessee: 'TN',
+  texas: 'TX',
+  utah: 'UT',
+  vermont: 'VT',
+  virginia: 'VA',
+  washington: 'WA',
+  'west virginia': 'WV',
+  wisconsin: 'WI',
+  wyoming: 'WY',
+  'district of columbia': 'DC',
+};
+
+const normalizeStateToCode = (state: string) => {
+  const trimmed = state.trim();
+  if (!trimmed) return '';
+  if (trimmed.length === 2) return trimmed.toUpperCase();
+  const normalizedKey = trimmed.toLowerCase().replace(/\s+/g, ' ');
+  return US_STATE_CODES[normalizedKey] || trimmed.toUpperCase();
+};
 
 export default function AffiliateApplicationPage() {
   const [form, setForm] = useState({
@@ -19,6 +82,7 @@ export default function AffiliateApplicationPage() {
     email: '',
   });
   const [showSSN, setShowSSN] = useState(false);
+
   // Address validation helper (ported from become-affiliate)
   const validateState = (state: string) =>
     /^[A-Z]{2}$/.test(state.trim().toUpperCase());
@@ -42,15 +106,54 @@ export default function AffiliateApplicationPage() {
     // Accept MM/DD/YYYY only
     return /^\d{2}\/\d{2}\/\d{4}$/.test(dob.trim());
   };
-  // ...existing code...
+
+  // Convert ISO date (YYYY-MM-DD) to MM/DD/YYYY
+  const convertISOToMMDDYYYY = (isoDate: string): string => {
+    if (!isoDate) return '';
+    if (isoDate.includes('/')) return isoDate;
+    const [year, month, day] = isoDate.split('-');
+    return `${month}/${day}/${year}`;
+  };
+
   useEffect(() => {
-    async function fetchEmail() {
-      const user = await authService.getCurrentUser();
-      if (user && user.email) {
-        setForm((prev) => ({ ...prev, email: user.email }));
+    async function fetchUserData() {
+      try {
+        const user = await authService.getCurrentUser();
+
+        if (user) {
+          const personalInfo = await profileService.getPersonalInfo(user.id);
+
+          if (personalInfo) {
+            // Pre-fill form with user data
+            setForm((prev) => ({
+              ...prev,
+              email: user.email || prev.email,
+              first_name: personalInfo.first_name || prev.first_name,
+              last_name: personalInfo.last_name || prev.last_name,
+              phone: personalInfo.phone || prev.phone,
+              address: personalInfo.address || prev.address,
+              address2: personalInfo.address2 || prev.address2,
+              city: personalInfo.city || prev.city,
+              state: normalizeStateToCode(personalInfo.state || prev.state),
+              postal_code: personalInfo.zip_code || prev.postal_code,
+              ssn_last_four: personalInfo.ssn_last_four || prev.ssn_last_four,
+              dob: convertISOToMMDDYYYY(personalInfo.date_of_birth || prev.dob),
+            }));
+          } else {
+            // If no personal info, at least set the email
+            setForm((prev) => ({ ...prev, email: user.email }));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load user data:', err);
+        // Still try to load email as fallback
+        const user = await authService.getCurrentUser();
+        if (user && user.email) {
+          setForm((prev) => ({ ...prev, email: user.email }));
+        }
       }
     }
-    fetchEmail();
+    fetchUserData();
   }, []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -76,32 +179,39 @@ export default function AffiliateApplicationPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const normalizedState = normalizeStateToCode(form.state);
+    const normalizedForm = {
+      ...form,
+      state: normalizedState,
+    };
+
     // Phone validation
-    if (!validatePhone(form.phone)) {
+    if (!validatePhone(normalizedForm.phone)) {
       setError(
         'Phone number must be valid (e.g., (123) 456-7890 or 123-456-7890).'
       );
       setSubmitting(false);
       return;
     }
-    e.preventDefault();
     setSubmitting(true);
     setError('');
     // Address validation
-    const addressError = validateAddress(form);
+    const addressError = validateAddress(normalizedForm);
     if (addressError) {
       setError(addressError);
       setSubmitting(false);
       return;
     }
     // DOB validation
-    if (!validateDOB(form.dob)) {
+    if (!validateDOB(normalizedForm.dob)) {
       setError('Date of birth must be in MM/DD/YYYY format.');
       setSubmitting(false);
       return;
     }
     // Validate DOB for 18+
-    const [month, day, year] = form.dob.split('/').map(Number);
+    const [month, day, year] = normalizedForm.dob.split('/').map(Number);
     const dobDate = new Date(year, month - 1, day);
     const today = new Date();
     let age = today.getFullYear() - dobDate.getFullYear();
@@ -116,17 +226,18 @@ export default function AffiliateApplicationPage() {
     }
     // Validate phone number (US 10 digits)
     const phonePattern = /^\d{10}$/;
-    if (!phonePattern.test(form.phone.replace(/\D/g, ''))) {
+    if (!phonePattern.test(normalizedForm.phone.replace(/\D/g, ''))) {
       setError('Phone number must be 10 digits.');
       setSubmitting(false);
       return;
     }
     try {
-      console.log('Affiliate application form submission', form);
+      setForm((prev) => ({ ...prev, state: normalizedState }));
+
       const res = await fetch('/api/affiliate/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(normalizedForm),
       });
       if (!res.ok) throw new Error('Failed to submit application');
       const { onboardingUrl } = await res.json();
@@ -236,6 +347,10 @@ export default function AffiliateApplicationPage() {
           </button>
         </div>
         <AddressAutocomplete
+          value={form.address}
+          onValueChange={(value) =>
+            setForm((prev) => ({ ...prev, address: value }))
+          }
           onSelect={({ street, city, state, zip }) => {
             setForm((prev) => ({
               ...prev,

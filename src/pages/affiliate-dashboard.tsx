@@ -14,7 +14,12 @@ import { StarField } from '@/components/StarField';
 
 import { useRouter } from 'next/router';
 import { authService } from '@/services/authService';
-// import { isAdmin as checkIsAdmin } from '@/services/adminService';
+import { isAdmin as checkIsAdmin } from '@/services/adminService';
+import {
+  getMyReferrer,
+  buildReferralLink,
+  ensureReferrer,
+} from '@/services/referralService';
 
 // Referral type is used inline in state, so no need to export separately if not reused
 
@@ -96,7 +101,17 @@ export default function AffiliateDashboardPage() {
         );
         const statusData = await statusRes.json();
         console.log('Affiliate status response:', statusData);
-        setReferralLink(statusData.referralLink || '');
+        let computedReferralLink = statusData.referralLink || '';
+        if (!computedReferralLink) {
+          const referrer = await getMyReferrer();
+          if (referrer?.referral_code) {
+            computedReferralLink = buildReferralLink(referrer.referral_code);
+          } else {
+            const ensured = await ensureReferrer();
+            computedReferralLink = ensured?.link || '';
+          }
+        }
+        setReferralLink(computedReferralLink);
         setStatus(statusData.status || '');
         setIsAffiliateOnly(!!statusData.isAffiliateOnly);
         console.log('Set isAffiliateOnly to:', !!statusData.isAffiliateOnly);
@@ -122,14 +137,8 @@ export default function AffiliateDashboardPage() {
       // Check admin status
       if (user && user.email) {
         try {
-          const token =
-            localStorage.getItem('access_token') ||
-            sessionStorage.getItem('access_token');
-          const res = await fetch('/api/admin/is-admin', {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-          const data = await res.json();
-          setIsAdmin(!!data.isAdmin);
+          const admin = await checkIsAdmin(user.email);
+          setIsAdmin(admin);
         } catch {
           setIsAdmin(false);
         }
@@ -224,7 +233,7 @@ export default function AffiliateDashboardPage() {
                 <>
                   <Button
                     variant="secondary"
-                    onClick={() => router.push('/dashboard')}
+                    onClick={() => router.push('/dashboard?fromAffiliate=1')}
                     className="bg-brand-sky-blue/10 text-brand-sky-blue border border-brand-sky-blue/30 rounded px-4 py-2 hover:bg-brand-sky-blue/20 hover:text-brand-sky-blue-light transition-colors"
                   >
                     Back to Dashboard
@@ -246,7 +255,7 @@ export default function AffiliateDashboardPage() {
               {isAdmin && (
                 <Button
                   variant="secondary"
-                  onClick={() => router.push('/admin')}
+                  onClick={() => router.push('/admin/admin-emails')}
                   className="bg-brand-sky-blue/20 text-brand-sky-blue border border-brand-sky-blue/30 rounded px-4 py-2 hover:bg-brand-sky-blue/30 hover:text-brand-sky-blue-light transition-colors"
                 >
                   Admin

@@ -234,6 +234,13 @@ export default function PersonalInfoPage() {
     return `${numbers.slice(0, 3)}-${numbers.slice(3, 5)}-${numbers.slice(5, 9)}`;
   };
 
+  const maskSSN = (ssn: string) => {
+    const numbers = ssn.replace(/\D/g, '');
+    if (numbers.length === 0) return '';
+    if (numbers.length <= 4) return '***-**-' + numbers;
+    return '***-**-' + numbers.slice(-4);
+  };
+
   const formatDateOfBirth = (value: string) => {
     const numbers = value.replace(/\D/g, '');
     if (numbers.length <= 2) return numbers;
@@ -808,6 +815,7 @@ export default function PersonalInfoPage() {
                 </Label>
                 <Input
                   id="ssn"
+                  type="password"
                   value={formData.ssn}
                   onChange={(e) =>
                     handleInputChange('ssn', formatSSN(e.target.value))

@@ -76,6 +76,16 @@ export default function ConfirmationPage() {
       }
 
       try {
+        // Helper function to convert ISO format (YYYY-MM-DD) to MM/DD/YYYY
+        const convertISOToMMDDYYYY = (isoDate: string): string => {
+          if (!isoDate) return '';
+          // Check if it's already in MM/DD/YYYY format
+          if (isoDate.includes('/')) return isoDate;
+          // Convert YYYY-MM-DD to MM/DD/YYYY
+          const [year, month, day] = isoDate.split('-');
+          return `${month}/${day}/${year}`;
+        };
+
         // Map database fields to PersonalInfo interface
         const personalData: PersonalInfo = {
           firstName: personalInfoFromDb.first_name || '',
@@ -87,7 +97,9 @@ export default function ConfirmationPage() {
           phoneNumber: personalInfoFromDb.phone || '',
           email: profileFromDb.email || user.email || '',
           ssn: personalInfoFromDb.ssn_last_four || '', // Only last 4 digits from DB
-          dateOfBirth: personalInfoFromDb.date_of_birth || '',
+          dateOfBirth: convertISOToMMDDYYYY(
+            personalInfoFromDb.date_of_birth || ''
+          ),
         };
         setPersonalInfo(personalData);
         setSelectedPlan(JSON.parse(plan));
@@ -198,6 +210,14 @@ export default function ConfirmationPage() {
   const maskSSN = (ssn: string) => {
     const numbers = ssn.replace(/\D/g, '');
     return `***-**-${numbers.slice(-4)}`;
+  };
+
+  const formatPhoneNumber = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 3) return numbers;
+    if (numbers.length <= 6)
+      return `(${numbers.slice(0, 3)}) ${numbers.slice(3)}`;
+    return `(${numbers.slice(0, 3)}) ${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`;
   };
 
   const getPlanFeatures = (planName: string) => {
@@ -463,7 +483,9 @@ export default function ConfirmationPage() {
                   </div>
                   <div>
                     <p className="text-brand-white/60 text-sm">Phone</p>
-                    <p className="font-medium">{personalInfo.phoneNumber}</p>
+                    <p className="font-medium">
+                      {formatPhoneNumber(personalInfo.phoneNumber)}
+                    </p>
                   </div>
                   <div>
                     <p className="text-brand-white/60 text-sm">Date of Birth</p>

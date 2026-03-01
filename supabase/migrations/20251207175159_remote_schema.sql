@@ -572,6 +572,7 @@ CREATE OR REPLACE FUNCTION public.is_admin(p_email text)
  RETURNS boolean
  LANGUAGE sql
  STABLE
+ SECURITY DEFINER
 AS $function$
   select exists (
     select 1 from public.admin_emails where email = lower(p_email)

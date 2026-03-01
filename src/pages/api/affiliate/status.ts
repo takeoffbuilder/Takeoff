@@ -49,6 +49,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  if (affiliateStatus === 'active') {
+    try {
+      const { data: existingAffiliateActivity } = await supabase
+        .from('activity_logs')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('activity_type', 'affiliate_joined')
+        .limit(1)
+        .maybeSingle();
+
+      if (!existingAffiliateActivity) {
+        const { error: activityInsertError } = await supabase
+          .from('activity_logs')
+          .insert({
+            user_id: userId,
+            activity_type: 'affiliate_joined',
+            description: 'Became an affiliate',
+            metadata: { source: 'affiliate_status_api' },
+          });
+
+        if (activityInsertError) {
+          console.warn(
+            '[Affiliate Status] Failed to insert affiliate_joined activity:',
+            activityInsertError
+          );
+        }
+      }
+    } catch (activityError) {
+      console.warn(
+        '[Affiliate Status] Error ensuring affiliate_joined activity:',
+        activityError
+      );
+    }
+  }
+
   res.status(200).json({
     status: affiliateStatus,
     referralCode,
