@@ -56,7 +56,6 @@ export async function POST(req: Request) {
       referral_code: referralCode, 
       referred_user_id: userId,
       referrer_id: affiliate.id
- 
     });
   if (insertError) {
     if (
@@ -67,5 +66,71 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, created: true });
+
+  // MIRROR DIRECT SIGNUP: Create user_booster_accounts row for referred user with all required fields
+  const defaultPlanSlug = 'starter_boost';
+  // Fetch plan details from booster_plans
+  const { data: plan, error: planError } = await supabase
+    .from('booster_plans')
+    .select('*')
+    .eq('plan_slug', defaultPlanSlug)
+    .single();
+  console.log('[ReferralAttach] Plan lookup result:', { plan, planError });
+  if (planError || !plan) {
+    console.error('[ReferralAttach] Plan lookup failed:', planError);
+    return NextResponse.json({ error: 'Could not fetch plan details', details: planError }, { status: 500 });
+  }
+
+  // Calculate next payment date (30 days from now)
+  const nextPaymentDate = new Date();
+  nextPaymentDate.setDate(nextPaymentDate.getDate() + 30);
+
+  const accountData = {
+    user_id: userId,
+    plan_id: plan.id,
+    plan_slug: plan.plan_slug,
+    monthly_amount: plan.monthly_amount,
+    credit_limit: plan.credit_limit,
+    status: 'pending', // or 'active' if you want immediate activation
+    next_payment_date: nextPaymentDate.toISOString().split('T')[0],
+    created_at: new Date().toISOString(),
+  };
+  console.log('[ReferralAttach] Booster account insert payload:', accountData);
+
+  const { error: boosterInsertError, data: boosterAccount } = await supabase
+    .from('user_booster_accounts')
+    .insert([accountData])
+    .select()
+    .single();
+  console.log('[ReferralAttach] Booster account insert result:', { boosterInsertError, boosterAccount });
+  if (boosterInsertError) {
+    console.error('[ReferralAttach] Supabase insert error:', boosterInsertError);
+    return NextResponse.json({ error: boosterInsertError.message, details: boosterInsertError }, { status: 500 });
+  }
+
+  // Log account creation activity
+  try {
+    await supabase
+      .from('activity_logs')
+      .insert({
+        user_id: userId,
+        activity_type: 'account_created',
+        description: 'Account successfully created',
+        created_at: new Date().toISOString(),
+      });
+    await supabase
+      .from('activity_logs')
+      .insert({
+        user_id: userId,
+        activity_type: 'plan_added',
+        description: `Added ${plan.plan_name} plan`,
+        metadata: { plan_name: plan.plan_name, amount: plan.monthly_amount },
+        created_at: new Date().toISOString(),
+      });
+  } catch (logErr) {
+    // Log but do not fail the request
+    console.warn('Failed to log account creation/plan activity:', logErr);
+  }
+
+  return NextResponse.json({ ok: true, created: true, boosterAccountCreated: true });
 }

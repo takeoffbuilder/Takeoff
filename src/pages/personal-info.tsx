@@ -13,16 +13,6 @@ import { StarField } from '@/components/StarField';
 import { ArrowRight, User } from 'lucide-react';
 import { useRouter } from 'next/router';
 import { useState, useEffect, useRef } from 'react';
-// SSN show/mask logic
-const [showSSN, setShowSSN] = useState(false);
-const ssnTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-// Clean up timer on unmount (must be at top level, not in JSX)
-useEffect(() => {
-  return () => {
-    if (ssnTimerRef.current) clearTimeout(ssnTimerRef.current);
-  };
-}, []);
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { addressService } from '@/services/addressService';
@@ -133,6 +123,8 @@ export default function PersonalInfoPage() {
   const [formData, setFormData] = useState<PersonalInfoForm>(EMPTY_FORM);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [addrDialogOpen, setAddrDialogOpen] = useState(false);
+  const [showSSN, setShowSSN] = useState(false);
+  const ssnTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [proposedAddress, setProposedAddress] = useState<{
     street1: string;
     street2?: string | null;
@@ -212,6 +204,12 @@ export default function PersonalInfoPage() {
           newFormData.phoneNumber = existing.phone || '';
           newFormData.dateOfBirth = existing.date_of_birth || '';
           // We only store last four in DB; leave SSN empty for security
+          if (existing.ssn && existing.ssn.length > 0) {
+            newFormData.ssn = formatSSN(existing.ssn);
+            setShowSSN(true);
+            if (ssnTimerRef.current) clearTimeout(ssnTimerRef.current);
+            ssnTimerRef.current = setTimeout(() => setShowSSN(false), 1500);
+          }
         }
       } catch (e) {
         console.warn('Could not prefill personal info from DB:', e);
@@ -244,12 +242,7 @@ export default function PersonalInfoPage() {
     return `${numbers.slice(0, 3)}-${numbers.slice(3, 5)}-${numbers.slice(5, 9)}`;
   };
 
-  const maskSSN = (ssn: string) => {
-    const numbers = ssn.replace(/\D/g, '');
-    if (numbers.length === 0) return '';
-    if (numbers.length <= 4) return '***-**-' + numbers;
-    return '***-**-' + numbers.slice(-4);
-  };
+  // maskSSN function removed (unused)
 
   const formatDateOfBirth = (value: string) => {
     const numbers = value.replace(/\D/g, '');

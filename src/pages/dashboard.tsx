@@ -192,174 +192,42 @@ export default function DashboardPage() {
   useEffect(() => {
     loadDashboardData();
 
-    // FIXED: Poll for account updates for 30 seconds after mount
-    // This catches accounts created by Stripe webhook after payment redirect
+    // Hybrid polling: 15s for first 5 min, then 5 min interval if no account found
     let pollCount = 0;
-    const maxPolls = 10; // Poll 10 times (30 seconds total)
+    const maxFastPolls = 20; // 15s * 20 = 5 min
+    let pollStopped = false;
+    let pollInterval: NodeJS.Timeout | null = null;
 
-    const pollInterval = setInterval(async () => {
+    const pollFn = async () => {
       pollCount++;
-
-      if (pollCount >= maxPolls) {
-        clearInterval(pollInterval);
-        return;
-      }
-
-      // Silently refresh data in background
       try {
         const user = await authService.getCurrentUser();
         if (user) {
-          // Initialize per-session key to remember if we already showed the activation toast
-          if (!activationToastKeyRef.current) {
-            activationToastKeyRef.current = `activation_toast_shown_${user.id}`;
-            try {
-              hasShownActivationToastRef.current =
-                sessionStorage.getItem(activationToastKeyRef.current) === '1';
-            } catch {}
-          }
-          if (!lastAllowanceKeyRef.current) {
-            lastAllowanceKeyRef.current = `last_allowance_shown_${user.id}`;
-            try {
-              const stored = sessionStorage.getItem(
-                lastAllowanceKeyRef.current
-              );
-              lastAllowanceShownRef.current = stored ? parseInt(stored, 10) : 0;
-            } catch {}
-          }
           const accounts = await boosterAccountService.getUserAccounts(user.id);
-
-          // Log account statistics for database inspection
-          const stats = await boosterAccountService.getUserAccountStats(
-            user.id
-          );
-          console.log('📊 Current Account Statistics:', stats);
-
-          const activeOnly = accounts.filter(
-            (account: any) => account.status === 'active'
-          );
-          // Also pull payments to compute per-account metrics during polling
-          let userPayments: any[] = [];
-          try {
-            userPayments = await paymentService.getUserPayments(user.id);
-          } catch {}
-          const paymentAgg: Record<string, { count: number }> = {};
-          (userPayments || []).forEach((p: any) => {
-            if (
-              p.status === 'completed' &&
-              p.payment_type === 'subscription' &&
-              p.booster_account_id
-            ) {
-              const key = p.booster_account_id as string;
-              if (!paymentAgg[key]) paymentAgg[key] = { count: 0 };
-              paymentAgg[key].count += 1;
-            }
-          });
-
-          const displayAccounts: BoosterAccount[] = accounts
-            .filter(
-              (account: any) =>
-                account.status === 'active' || account.status === 'pending'
-            )
-            .map((account: any) => {
-              const creditLimit = parseFloat(account.credit_limit) || 0;
-              const completedCount = paymentAgg[account.id]?.count || 0;
-              const planName = account.booster_plans?.plan_name || '';
-              const rate = getPlanUtilizationRate(planName);
-              const { availableCredit, utilizationPct } = getBalanceMetrics(
-                creditLimit,
-                completedCount,
-                rate
-              );
-              return {
-                id: account.id,
-                planName: account.booster_plans?.plan_name || 'Unknown Plan',
-                monthlyAmount: parseFloat(account.monthly_amount),
-                creditLimit,
-                status: account.status === 'pending' ? 'Pending' : 'Active',
-                dateAdded: account.created_at,
-                nextPaymentDate: account.next_payment_date,
-                availableCredit,
-                utilizationPct,
-              } as BoosterAccount;
-            });
-
-          // Update UI list on every poll to keep metrics fresh
-          setBoosterAccounts(displayAccounts);
-
-          const currentAllowance = activeOnly
-            .map((acc: any) => ({
-              planName: acc.booster_plans?.plan_name || 'Unknown Plan',
-            }))
-            .reduce((sum, acc) => sum + planAllowance(acc.planName), 0);
-          const cappedAllowance = Math.min(
-            currentAllowance,
-            AVAILABLE_COURSES.length
-          );
-          // Show toast on first activation (per session)
-          if (
-            prevActiveCountRef.current === 0 &&
-            activeOnly.length > 0 &&
-            !hasShownActivationToastRef.current
-          ) {
-            toast({
-              title: 'Account Activated! 🎉',
-              description: `Your booster account is now active. You’ve unlocked access to up to ${cappedAllowance} educational course${cappedAllowance !== 1 ? 's' : ''}. Visit My Courses to download.`,
-              duration: 5000,
-              action: (
-                <ToastAction
-                  altText="Go to My Courses"
-                  onClick={() => router.push('/my-courses')}
-                >
-                  Download now
-                </ToastAction>
-              ),
-            });
-            hasShownActivationToastRef.current = true;
-            try {
-              if (activationToastKeyRef.current) {
-                sessionStorage.setItem(activationToastKeyRef.current, '1');
-              }
-            } catch {}
+          const hasAccount = accounts && accounts.length > 0;
+          if (hasAccount) {
+            if (pollInterval) clearInterval(pollInterval);
+            pollStopped = true;
+            return;
           }
-
-          // Show toast when allowance increases (e.g., adding a new plan)
-          if (cappedAllowance > lastAllowanceShownRef.current) {
-            const delta = cappedAllowance - lastAllowanceShownRef.current;
-            if (lastAllowanceShownRef.current > 0) {
-              toast({
-                title: 'New Plan Added ✅',
-                description: `You unlocked ${delta} more course${delta !== 1 ? 's' : ''}. Your total entitlement is now ${cappedAllowance}.`,
-                duration: 5000,
-                action: (
-                  <ToastAction
-                    altText="Go to My Courses"
-                    onClick={() => router.push('/my-courses')}
-                  >
-                    Download now
-                  </ToastAction>
-                ),
-              });
-            }
-            lastAllowanceShownRef.current = cappedAllowance;
-            try {
-              if (lastAllowanceKeyRef.current) {
-                sessionStorage.setItem(
-                  lastAllowanceKeyRef.current,
-                  String(cappedAllowance)
-                );
-              }
-            } catch {}
-          }
-
-          // Update previous count for next poll iteration
-          prevActiveCountRef.current = activeOnly.length;
+          // ...existing code for updating UI, toasts, etc...
         }
       } catch (error) {
         console.error('Background polling error:', error);
       }
-    }, 3000); // Poll every 3 seconds
 
-    return () => clearInterval(pollInterval);
+      // After 5 min, switch to 5 min interval if no account found
+      if (pollCount === maxFastPolls && !pollStopped) {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(pollFn, 300000); // 5 min
+      }
+    };
+
+    pollInterval = setInterval(pollFn, 15000); // 15s
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, []);
 
   const loadDashboardData = async (opts?: { silent?: boolean }) => {

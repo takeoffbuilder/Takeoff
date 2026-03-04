@@ -106,6 +106,7 @@ export default async function handler(
           const stripe_customer_id = invoice.customer || null;
           const plan_slug = account.plan_slug || null;
           if (!alreadyExists && invoice.subscription) {
+            console.log('[Webhook] Looking for booster account with stripe_subscription_id:', subscriptionId);
             const { data: paymentSession } = await supabase
               .from('payments')
               .select('stripe_checkout_id')
@@ -499,11 +500,12 @@ export default async function handler(
                 ? session.subscription
                 : null,
           };
-          console.log('[Webhook] Attempting Supabase insert (user_booster_accounts):', boosterAccountData);
+          console.log('[Webhook] Plan lookup result:', { planId, monthlyAmount, creditLimit });
+          console.log('[Webhook] Booster account insert payload:', boosterAccountData);
           const { error: boosterError, data: boosterInsertData } = await supabase
             .from('user_booster_accounts')
             .insert(boosterAccountData);
-          console.log('[Webhook] user_booster_accounts insert result:', { boosterError, boosterInsertData });
+          console.log('[Webhook] Booster account insert result:', { boosterError, boosterInsertData });
           if (boosterError) {
             console.error('[Webhook] Supabase insert error (user_booster_accounts):', boosterError);
           } else {
@@ -517,14 +519,14 @@ export default async function handler(
                   {
                     user_id: userId,
                     activity_type: 'account_created',
-                    description: 'Account successfully created'
+                    description: 'Account successfully created',
                   },
                   {
                     user_id: userId,
                     activity_type: 'plan_added',
                     description: `Added ${planSlug} plan`,
-                    metadata: { plan_name: planSlug, amount: monthlyAmount }
-                  }
+                    metadata: { plan_slug: planSlug, amount: monthlyAmount },
+                  },
                 ]);
             } catch (logErr) {
               console.warn('[Webhook] Failed to log account creation/plan activity:', logErr);
