@@ -26,7 +26,9 @@ async function triggerPayout(referred_user_id: string) {
 
 async function runAutoPayouts() {
   const admin = createAdminClient();
-  const { data: referrals, error } = await admin
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (admin as any)
     .from('referred_users')
     .select('id')
     .eq('payout_status', 'approved')
@@ -36,6 +38,8 @@ async function runAutoPayouts() {
     console.error('Error fetching referrals:', error);
     return;
   }
+
+  const referrals = (data ?? []) as Array<{ id: string }>;
 
   if (!referrals || referrals.length === 0) {
     console.log('No approved unpaid referrals found.');
