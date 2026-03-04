@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const statusList = status.split(',').map(s => s.trim());
   const admin = createAdminClient();
   const query = admin.from('referred_users')
-    .select('*')
+    .select() // no argument, avoids deep type error
     .in('payout_status', statusList)
     .order('signup_at', { ascending: false })
     .range((page - 1) * pageSize, page * pageSize - 1);
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   // Get total count for pagination
   const { count: totalCount } = await admin.from('referred_users')
-    .select('*', { count: 'exact', head: true })
+    .select(undefined, { count: 'exact', head: true })
     .in('payout_status', statusList);
   return NextResponse.json({ items: data || [], total: totalCount || 0 });
 }
