@@ -12,7 +12,17 @@ import {
 import { StarField } from '@/components/StarField';
 import { ArrowRight, User } from 'lucide-react';
 import { useRouter } from 'next/router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+// SSN show/mask logic
+const [showSSN, setShowSSN] = useState(false);
+const ssnTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+// Clean up timer on unmount (must be at top level, not in JSX)
+useEffect(() => {
+  return () => {
+    if (ssnTimerRef.current) clearTimeout(ssnTimerRef.current);
+  };
+}, []);
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { addressService } from '@/services/addressService';
@@ -815,11 +825,17 @@ export default function PersonalInfoPage() {
                 </Label>
                 <Input
                   id="ssn"
-                  type="password"
+                  type={showSSN ? 'text' : 'password'}
                   value={formData.ssn}
-                  onChange={(e) =>
-                    handleInputChange('ssn', formatSSN(e.target.value))
-                  }
+                  onChange={(e) => {
+                    handleInputChange('ssn', formatSSN(e.target.value));
+                    setShowSSN(true);
+                    if (ssnTimerRef.current) clearTimeout(ssnTimerRef.current);
+                    ssnTimerRef.current = setTimeout(
+                      () => setShowSSN(false),
+                      1500
+                    );
+                  }}
                   className="bg-brand-midnight/50 border-brand-sky-blue/30 text-brand-white focus:border-brand-sky-blue"
                   placeholder="XXX-XX-XXXX"
                   maxLength={11}
