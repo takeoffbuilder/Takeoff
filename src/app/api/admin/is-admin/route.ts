@@ -58,9 +58,7 @@ export async function GET(req: Request) {
         allowed = false;
       }
     }
-    if (!allowed) {
-      allowed = isAdminByEnv(email);
-    }
+  //removed fallback
 
     return NextResponse.json({ isAdmin: allowed });
   } catch {

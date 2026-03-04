@@ -82,7 +82,7 @@ export default function AffiliateDashboardPage() {
   const [referrals, setReferrals] = useState([]);
   const [referralLink, setReferralLink] = useState('');
   // Removed unused payout demo state
-  const [isSubscriber, setIsSubscriber] = useState(false);
+  // Removed unused isSubscriber state
   const [isAffiliateOnly, setIsAffiliateOnly] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
@@ -119,20 +119,7 @@ export default function AffiliateDashboardPage() {
         console.error('Error fetching affiliate status:', e);
       }
 
-      try {
-        // Fetch subscription status once on mount (won't change unless they complete payment)
-        const subRes = await fetch(
-          `/api/subscription/status?userId=${user.id}`
-        );
-        const subData = await subRes.json();
-        console.log('Subscription status response:', subData);
-        const isSubscribed = !!subData.isSubscriber;
-        console.log('Setting isSubscriber to:', isSubscribed);
-        setIsSubscriber(isSubscribed);
-      } catch (e) {
-        console.error('Error fetching subscription status:', e);
-        setIsSubscriber(false);
-      }
+      // Removed unused subscription status fetch logic
 
       // Check admin status
       if (user && user.email) {
