@@ -41,8 +41,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ToastAction } from '@/components/ui/toast';
-import { AVAILABLE_COURSES } from '@/services/courseService';
 import { activityService } from '@/services/activityService';
 import {
   getBalanceMetrics,
@@ -172,22 +170,6 @@ export default function DashboardPage() {
   >([]);
 
   // Track toast visibility and last allowance to avoid repetition and enable increments
-  const prevActiveCountRef = useRef<number>(0);
-  const hasShownActivationToastRef = useRef<boolean>(false);
-  const activationToastKeyRef = useRef<string | null>(null);
-  const lastAllowanceKeyRef = useRef<string | null>(null);
-  const lastAllowanceShownRef = useRef<number>(0);
-
-  const planAllowance = (planName: string): number => {
-    const name = (planName || '').toLowerCase();
-    if (name.includes('starter')) return 1;
-    if (name.includes('power')) return 2;
-    if (name.includes('max')) return 3;
-    if (name.includes('blaster')) return 4;
-    if (name.includes('super')) return 5;
-    if (name.includes('star')) return 6;
-    return 0;
-  };
 
   useEffect(() => {
     loadDashboardData();
