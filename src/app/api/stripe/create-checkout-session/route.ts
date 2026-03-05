@@ -76,19 +76,33 @@ export async function POST(req: Request) {
     const successUrl = `${base}/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${base}/payment?canceled=1`;
 
-    // Create Stripe customer with metadata
-    const customer = await stripe.customers.create({
-      email,
-      metadata: { user_id: userId }
-    });
-
-    // Create checkout session using the customer ID
+    // Look up Stripe customer ID from profiles table
+    const supabase = createAdminClient();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('stripe_customer_id')
+      .eq('id', userId)
+      .single();
+    let stripeCustomerId = profile?.stripe_customer_id;
+    // If no Stripe customer ID, create one and store it
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email,
+        metadata: { user_id: userId }
+      });
+      stripeCustomerId = customer.id;
+      await supabase
+        .from('profiles')
+        .update({ stripe_customer_id: stripeCustomerId })
+        .eq('id', userId);
+    }
+    // Create checkout session using the Stripe customer ID
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: successUrl,
       cancel_url: cancelUrl,
-      customer: customer.id,
+      customer: stripeCustomerId,
       subscription_data: {
         metadata: { userId, planSlug: planId },
       },

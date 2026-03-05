@@ -487,6 +487,13 @@ export default async function handler(
 
         // Insert booster account with plan_id, plan_slug, monthly_amount, and credit_limit
         if (planId && monthlyAmount && creditLimit) {
+          // Fetch Stripe customer ID from profiles table
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('stripe_customer_id')
+            .eq('id', userId)
+            .single();
+
           const boosterAccountData = {
             user_id: userId,
             status: 'active',
@@ -499,6 +506,7 @@ export default async function handler(
               typeof session.subscription === 'string'
                 ? session.subscription
                 : null,
+            stripe_customer_id: profile?.stripe_customer_id || null,
           };
           console.log('[Webhook] Plan lookup result:', { planId, monthlyAmount, creditLimit });
           console.log('[Webhook] Booster account insert payload:', boosterAccountData);

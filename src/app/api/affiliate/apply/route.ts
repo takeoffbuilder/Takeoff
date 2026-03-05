@@ -87,7 +87,7 @@ try {
         type: 'express',
         country: 'US',
         email,
-        business_type: 'individual',
+        business_type: 'individual', // Ensure allowed value
         individual: {
           first_name,
           last_name,
