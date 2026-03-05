@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/integrations/supabase/admin-client';
 import Stripe from 'stripe';
+import type { Stripe as StripeType } from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2025-02-24.acacia',
@@ -84,10 +85,11 @@ try {
     throw new Error('Invalid date of birth. Please use MM/DD/YYYY.');
   }
       const stripePayload = {
+      const stripePayload: StripeType.AccountCreateParams = {
         type: 'express',
         country: 'US',
         email,
-        business_type: 'individual', // Ensure allowed value
+        business_type: 'individual',
         individual: {
           first_name,
           last_name,
