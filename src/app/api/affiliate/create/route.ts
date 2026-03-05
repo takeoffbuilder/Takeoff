@@ -104,31 +104,36 @@ export async function POST(req: NextRequest) {
       // Always create a new onboarding link
       let accountLink;
       try {
-        accountLink = await stripe.accountLinks.create({
-          account: stripeAccountId,
-          refresh_url: 'http://localhost:3000/affiliate/onboarding/refresh',
-          return_url: 'http://localhost:3000/affiliate/onboarding/return',
-          type: 'account_onboarding',
+        account = await stripe.accounts.create({
+          type: 'express',
+          country: 'US',
+          email,
+          business_type: 'individual',
+          individual: {
+            first_name,
+            last_name,
+            email,
+            phone,
+            dob: {
+              day,
+              month,
+              year,
+            },
+            address: {
+              line1: address,
+              line2: address2,
+              city,
+              state,
+              postal_code,
+              country,
+            },
+          },
         });
-      } catch (err) {
-        console.error('Stripe accountLinks.create error:', err);
-        return NextResponse.json({ error: 'Stripe onboarding link creation failed', details: err?.message || err }, { status: 500 });
-      }
-      // Save onboarding link
-      await supabase
-        .from('affiliate_applications')
-        .update({ stripe_onboarding_url: accountLink.url })
-        .eq('id', id);
-      return NextResponse.json({ url: accountLink.url });
-    }
-    // If onboarding is complete, return dashboard
-    return NextResponse.json({ dashboard: true });
-  }
-
-  // If not exists, create Stripe account and insert row
-  const account = await stripe.accounts.create({
-    type: 'express',
-    country: country || 'US',
+        // Update profiles table with new Stripe Connect account ID
+        await admin
+          .from('profiles')
+          .update({ stripe_connect_account_id: account.id })
+          .eq('id', existing.id);
     email,
     business_type: 'individual',
     capabilities: {
