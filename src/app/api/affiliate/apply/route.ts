@@ -84,7 +84,7 @@ try {
   if (!year || !month || !day || isNaN(year) || isNaN(month) || isNaN(day)) {
     throw new Error('Invalid date of birth. Please use MM/DD/YYYY.');
   }
-      const stripePayload = {
+      // Removed duplicate untyped declaration for stripePayload
       const stripePayload: StripeType.AccountCreateParams = {
         type: 'express',
         country: 'US',
