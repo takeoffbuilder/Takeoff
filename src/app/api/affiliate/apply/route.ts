@@ -131,20 +131,21 @@ try {
     if (isNewProfile) {
       // Create the profile row now
       const { data: newProfile, error: insertError } = await admin
-        .from('profiles')
-        .insert({
-          email,
-          first_name,
-          last_name,
-          full_name: `${first_name} ${last_name}`,
-          address,
-          address2,
-          city,
-          state,
-          postal_code,
-          country,
-          phone,
-        })
+          .from('profiles')
+          .insert({
+            id: profileId, // Add required id field
+            email,
+            first_name,
+            last_name,
+            full_name: `${first_name} ${last_name}`,
+            address,
+            address2,
+            city,
+            state,
+            postal_code,
+            country,
+            phone,
+          })
         .select('id')
         .single();
       if (insertError || !newProfile) {
