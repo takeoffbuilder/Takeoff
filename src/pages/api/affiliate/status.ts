@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let referralLink = null;
   const { data: profile } = await supabase
     .from('profiles')
-    .select('referral_code, is_affiliate, stripe_connect_account_id, stripe_account_id')
+    .select('referral_code, is_affiliate, stripe_connect_account_id')
     .eq('id', userId)
     .maybeSingle();
   if (profile?.referral_code) {
