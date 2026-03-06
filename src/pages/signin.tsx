@@ -78,14 +78,13 @@ export default function SignInPage() {
       });
 
       // Fetch affiliate and subscriber status
-      // Check affiliate status
       const statusRes = await fetch(`/api/affiliate/status?userId=${user.id}`);
       const statusData = await statusRes.json();
       const isAffiliate =
         statusData.status &&
         (statusData.status.toLowerCase() === 'approved' ||
           statusData.status.toLowerCase() === 'active');
-      // Check subscriber status
+      const isAffiliateOnly = !!statusData.isAffiliateOnly;
       let isSubscriber = false;
       try {
         const subStatusRes = await fetch(
@@ -98,7 +97,7 @@ export default function SignInPage() {
       // Redirect logic: dual-role users always go to dashboard first
       if (isSubscriber) {
         router.push('/dashboard');
-      } else if (isAffiliate) {
+      } else if (isAffiliateOnly) {
         router.push('/affiliate-dashboard');
       } else {
         router.push('/');
