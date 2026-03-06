@@ -154,7 +154,7 @@ export default function PaymentPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: user.id,
-            name: user.name || '',
+            name: (user.user_metadata?.full_name as string) || '',
             email: user.email,
           }),
         });
