@@ -204,8 +204,8 @@ export default function PersonalInfoPage() {
           newFormData.phoneNumber = existing.phone || '';
           newFormData.dateOfBirth = existing.date_of_birth || '';
           // We only store last four in DB; leave SSN empty for security
-          if (existing.ssn && existing.ssn.length > 0) {
-            newFormData.ssn = formatSSN(existing.ssn);
+          if (existing.ssn_last_four && existing.ssn_last_four.length > 0) {
+            newFormData.ssn = formatSSN(existing.ssn_last_four);
             setShowSSN(true);
             if (ssnTimerRef.current) clearTimeout(ssnTimerRef.current);
             ssnTimerRef.current = setTimeout(() => setShowSSN(false), 1500);
