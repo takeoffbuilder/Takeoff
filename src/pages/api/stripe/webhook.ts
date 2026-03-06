@@ -706,7 +706,7 @@ const { error: updateProfileError } = await supabase
     stripe_connect_account_id: account.id,
     is_affiliate: true,
   })
-  .eq('id', affiliateApp.user_id);
+  .eq('id', affiliateApp.id);
 if (updateStatusError || updateProfileError) {
   if (updateStatusError) {
     console.error('[Webhook] Failed to update affiliate_applications status:', updateStatusError);
