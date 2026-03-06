@@ -73,7 +73,7 @@ export default function AffiliateConfirmationPage() {
             toast({
               title: 'Stripe account verified!',
               description: 'Your account is ready.',
-              variant: 'success',
+              variant: 'default',
             });
             clearInterval(interval);
           } else if (attempts > 30) {
