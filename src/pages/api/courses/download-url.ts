@@ -54,10 +54,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: 'Failed to load accounts' });
     }
 
-    // Explicitly type accounts
-    const activeAccounts = (accounts as BoosterAccount[] | null)?.filter(
+    // Filter active accounts (do not assert as BoosterAccount[])
+    const activeAccounts = (accounts ?? []).filter(
       (a) => a.status === 'active'
-    ) ?? [];
+    );
 
     const planAllowance = (planName: string): number => {
       const name = planName.toLowerCase();
