@@ -104,7 +104,12 @@ export default function AffiliateDashboardPage() {
         let computedReferralLink = statusData.referralLink || '';
         if (!computedReferralLink) {
           const referrer = await getMyReferrer();
-          if (referrer?.referral_code) {
+          if (
+            referrer &&
+            typeof referrer === 'object' &&
+            'referral_code' in referrer &&
+            typeof referrer.referral_code === 'string'
+          ) {
             computedReferralLink = buildReferralLink(referrer.referral_code);
           } else {
             const ensured = await ensureReferrer();
