@@ -3,8 +3,9 @@ import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/integrations/supabase/admin-client';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { userId } = req.query;
+  let { userId } = req.query;
   if (!userId) return res.status(400).json({ error: 'Missing userId' });
+  if (Array.isArray(userId)) userId = userId[0];
   const supabase = createAdminClient();
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
