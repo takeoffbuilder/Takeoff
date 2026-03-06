@@ -9,6 +9,7 @@ export interface BoosterAccount {
 }
 
 export interface UserProfile {
+  id: string;
   email: string;
   boosterAccounts: BoosterAccount[];
   paymentHistory?: PaymentRecord[];
