@@ -300,6 +300,7 @@ export type Database = {
           stripe_email: string | null
           stripe_name: string | null
           stripe_onboarding_url: string | null
+          total_conversions: number | null
           total_signups: number | null
           updated_at: string | null
         }
@@ -325,6 +326,7 @@ export type Database = {
           stripe_email?: string | null
           stripe_name?: string | null
           stripe_onboarding_url?: string | null
+          total_conversions?: number | null
           total_signups?: number | null
           updated_at?: string | null
         }
@@ -350,6 +352,7 @@ export type Database = {
           stripe_email?: string | null
           stripe_name?: string | null
           stripe_onboarding_url?: string | null
+          total_conversions?: number | null
           total_signups?: number | null
           updated_at?: string | null
         }
