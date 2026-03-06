@@ -140,7 +140,7 @@ export default async function handler(
               booster_account_id: account.id,
               stripe_invoice_id: invoice.id,
               stripe_checkout_id,
-              stripe_customer_id,
+              stripe_customer_id: typeof stripe_customer_id === 'string' ? stripe_customer_id : (stripe_customer_id?.id ?? ''),
               plan_slug,
               amount: invoice.amount_paid / 100,
               currency: invoice.currency || null,
