@@ -8,7 +8,7 @@ if (!stripeSecretKey) throw new Error('Missing STRIPE_SECRET_KEY env variable');
 if (!endpointSecret)
   throw new Error('Missing STRIPE_WEBHOOK_SECRET env variable');
 const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2023-08-16',
+  // apiVersion: '2023-08-16', // Removed to use default or correct type
 });
 
 export const config = {
