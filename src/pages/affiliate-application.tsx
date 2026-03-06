@@ -67,6 +67,19 @@ const normalizeStateToCode = (state: string) => {
 };
 
 export default function AffiliateApplicationPage() {
+  // Minimal address validation
+  const validateAddress = (form: {
+    address: string;
+    city: string;
+    state: string;
+    postal_code: string;
+  }) => {
+    if (!form.address || !form.city || !form.state || !form.postal_code) {
+      return 'All address fields are required.';
+    }
+    // Optionally, add more checks for US zip/state format
+    return '';
+  };
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -83,21 +96,7 @@ export default function AffiliateApplicationPage() {
   });
   const [showSSN, setShowSSN] = useState(false);
 
-  // Address validation helper (ported from become-affiliate)
-  const validateState = (state: string) =>
-    /^[A-Z]{2}$/.test(state.trim().toUpperCase());
-  const validateZip = (zip: string) => /^\d{5}(-\d{4})?$/.test(zip);
-  const validateAddress = (form: typeof form) => {
-    if (!form.address.trim()) return 'Street address is required.';
-    if (!form.city.trim()) return 'City is required.';
-    if (!validateState(form.state)) return 'State must be a 2-letter code.';
-    if (!validateZip(form.postal_code)) return 'Postal code is invalid.';
-    if (!form.country.trim()) return 'Country is required.';
-    return '';
-  };
-
-  // MM/DD/YYYY validation
-  // US phone validation
+  // Validation helpers
   const validatePhone = (phone: string) => {
     // Accept (xxx) xxx-xxxx, xxx-xxx-xxxx, xxx.xxx.xxxx, xxx xxx xxxx, or just digits
     return /^(\(\d{3}\)\s?|\d{3}[-.\s]?)\d{3}[-.\s]?\d{4}$/.test(phone.trim());
@@ -106,7 +105,7 @@ export default function AffiliateApplicationPage() {
     // Accept MM/DD/YYYY only
     return /^\d{2}\/\d{2}\/\d{4}$/.test(dob.trim());
   };
-
+  // Remove unused validateState, validateZip, validateAddress
   // Convert ISO date (YYYY-MM-DD) to MM/DD/YYYY
   const convertISOToMMDDYYYY = (isoDate: string): string => {
     if (!isoDate) return '';

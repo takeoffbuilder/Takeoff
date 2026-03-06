@@ -1,3 +1,11 @@
+// Affiliate form type for validation
+export type AffiliateForm = {
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  // Add other fields as needed
+};
 export interface BoosterAccount {
   id: string;
   planName: string;
