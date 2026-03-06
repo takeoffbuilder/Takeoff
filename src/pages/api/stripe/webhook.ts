@@ -689,7 +689,9 @@ export default async function handler(
         let remediationLink = null;
         if (account.requirements && account.requirements.current_deadline) {
           remediationLink =
-            account.requirements.alternatives?.remediation_url || null;
+            Array.isArray(account.requirements.alternatives) && account.requirements.alternatives.length > 0
+              ? account.requirements.alternatives[0].remediation_url || null
+              : null;
         }
         if (remediationLink) {
           console.log(
