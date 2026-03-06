@@ -70,7 +70,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const totalAllowance = activeAccounts.reduce((sum, a) => {
       const planName = a.booster_plans?.plan_name ?? '';
-      const planName = a.booster_plans?.plan_name ?? '';
       return sum + planAllowance(planName);
     }, 0);
 
