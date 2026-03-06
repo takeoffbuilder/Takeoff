@@ -372,7 +372,10 @@ export default function AffiliateDashboardPage() {
                             Email
                           </label>
                           <p className="text-white text-sm font-medium break-all">
-                            {profileEdit.email || '—'}
+                            {typeof profileEdit.email === 'string' &&
+                            profileEdit.email.trim() !== ''
+                              ? profileEdit.email
+                              : '—'}
                           </p>
                         </div>
                       </div>
