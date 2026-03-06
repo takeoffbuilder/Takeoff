@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Get the affiliate's profile to find the Stripe account ID
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, stripe_account_id')
+    .select('id, stripe_connect_account_id')
     .eq('id', userId)
     .maybeSingle();
 
@@ -26,9 +26,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // If there is a connected Stripe account, delete it
-  if (profile.stripe_account_id) {
+  if (profile.stripe_connect_account_id) {
     try {
-      await stripe.accounts.del(profile.stripe_account_id);
+      await stripe.accounts.del(profile.stripe_connect_account_id);
     } catch (err) {
       // Log but do not block account closure if Stripe fails
       console.error('Stripe account deletion error:', err);
