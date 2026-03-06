@@ -401,7 +401,11 @@ export default function AffiliateDashboardPage() {
                             </label>
                             <input
                               className="w-full bg-brand-midnight/50 border border-brand-sky-blue/30 text-white rounded px-3 py-2 focus:border-brand-sky-blue/60 transition-colors"
-                              value={profileEdit.phone || ''}
+                              value={
+                                typeof profileEdit.phone === 'string'
+                                  ? profileEdit.phone
+                                  : ''
+                              }
                               onChange={(e) =>
                                 setProfileEdit({
                                   ...profileEdit,
