@@ -42,7 +42,13 @@ export function LandingPage() {
     let isAdminUser = false;
     try {
       const adminModule = await import('@/services/adminService');
-      isAdminUser = await adminModule.isAdmin();
+      // Fetch user email from Supabase auth
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user && user.email) {
+        isAdminUser = await adminModule.isAdmin(user.email);
+      }
     } catch {}
     let refCode = referralCode;
     if (!refCode && typeof window !== 'undefined') {
