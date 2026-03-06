@@ -16,8 +16,9 @@ export async function GET(req: Request) {
       .select('id, referral_code, is_affiliate, affiliate_signup_count, affiliate_conversion_count')
       .eq('id', user.id)
       .maybeSingle();
-    if (profileErr) throw profileErr;
-    if (!profile) return NextResponse.json({ error: 'Not an affiliate' }, { status: 404 });
+    if (profileErr || !profile) {
+      return NextResponse.json({ error: 'Not an affiliate' }, { status: 404 });
+    }
 
     const { data: pendingRows, error: pendingErr } = await admin
       .from('referred_users')
