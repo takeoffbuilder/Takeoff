@@ -110,9 +110,9 @@ export default function AffiliateDashboardPage() {
         if (!computedReferralLink) {
           const referrer = await getMyReferrer();
           if (
-            referrer !== null &&
+            referrer &&
             typeof referrer === 'object' &&
-            'referral_code' in referrer &&
+            'referral_code' in (referrer as object) &&
             typeof (referrer as Referrer).referral_code === 'string'
           ) {
             computedReferralLink = buildReferralLink(
