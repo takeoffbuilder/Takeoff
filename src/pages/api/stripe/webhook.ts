@@ -127,7 +127,7 @@ export default async function handler(
           if (!alreadyExists) {
             // Fetch payment method ID from PaymentIntent if available
             let payment_method_id = null;
-            if (invoice.payment_intent) {
+            if (typeof invoice.payment_intent === 'string') {
               try {
                 const paymentIntent = await stripe.paymentIntents.retrieve(invoice.payment_intent);
                 payment_method_id = paymentIntent.payment_method || null;
