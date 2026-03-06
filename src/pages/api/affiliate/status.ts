@@ -38,8 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Derive effective affiliate status
   let affiliateStatus = affiliateApp?.affiliate_status || 'pending';
-  const hasStripeAccount =
-    !!profile?.stripe_connect_account_id || !!profile?.stripe_account_id;
+  const hasStripeAccount = !!profile?.stripe_connect_account_id;
   const isAffiliateFlag = !!profile?.is_affiliate;
   if (affiliateStatus !== 'inactive') {
     if (affiliateStatus === 'approved' || affiliateStatus === 'active') {
