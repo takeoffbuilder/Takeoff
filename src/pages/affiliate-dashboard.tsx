@@ -361,7 +361,10 @@ export default function AffiliateDashboardPage() {
                             Name
                           </label>
                           <p className="text-white text-sm font-medium">
-                            {profileEdit.full_name || '—'}
+                            {typeof profileEdit.full_name === 'string' &&
+                            profileEdit.full_name.trim() !== ''
+                              ? profileEdit.full_name
+                              : '—'}
                           </p>
                         </div>
                         <div className="bg-brand-midnight/50 rounded-lg p-3 border border-brand-sky-blue/10">
