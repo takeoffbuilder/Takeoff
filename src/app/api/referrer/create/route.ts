@@ -45,6 +45,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ referral_code, link: buildLink(referral_code) }, { status: 201 });
   } catch (e: unknown) {
     console.error('referrer/create failed', e);
-    return NextResponse.json({ error: 'Internal Error', detail: e.message }, { status: 500 });
+    let message = 'Unknown error';
+    if (typeof e === 'object' && e !== null && 'message' in e && typeof (e as { message?: unknown }).message === 'string') {
+      message = (e as { message: string }).message;
+    } else {
+      message = String(e);
+    }
+    return NextResponse.json({ error: 'Internal Error', detail: message }, { status: 500 });
   }
 }
