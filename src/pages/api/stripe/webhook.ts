@@ -685,35 +685,6 @@ export default async function handler(
           break;
         }
         console.log('[Webhook] Found affiliate application:', affiliateApp);
-        // If remediation is required, update onboarding link to remediation link
-        let remediationLink = null;
-        if (account.requirements && account.requirements.current_deadline) {
-          remediationLink =
-            Array.isArray(account.requirements.alternatives) && account.requirements.alternatives.length > 0
-              ? account.requirements.alternatives[0].remediation_url || null
-              : null;
-        }
-        if (remediationLink) {
-          console.log(
-            '[Webhook] Attempting to update onboarding link to remediation link:',
-            remediationLink
-          );
-          const { error: updateRemediationError } = await supabase
-            .from('affiliate_applications')
-            .update({ stripe_onboarding_url: remediationLink })
-            .eq('id', affiliateApp.id);
-          if (updateRemediationError) {
-            console.error(
-              '[Webhook] Failed to update remediation link:',
-              updateRemediationError
-            );
-          } else {
-            console.log(
-              '[Webhook] Updated onboarding link to remediation link:',
-              remediationLink
-            );
-          }
-        }
         // If onboarding is complete, update affiliate status, payout_setup_complete, stripe_connect_account_id, and profile
         if (account.charges_enabled && account.details_submitted) {
           console.log(
