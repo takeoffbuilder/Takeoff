@@ -13,7 +13,7 @@ export async function GET(req: Request) {
 
     const { data: profile, error: profileErr } = await admin
       .from('profiles')
-      .select('id, referral_code, is_affiliate, affiliate_signup_count, affiliate_conversion_count')
+      .select('id, referral_code, is_affiliate, total_signups, total_conversions')
       .eq('id', user.id)
       .maybeSingle();
     if (profileErr || !profile) {
@@ -33,8 +33,8 @@ export async function GET(req: Request) {
       referrer: profile,
       pending_count,
       pending_total_amount,
-      affiliate_signup_count: profile.affiliate_signup_count || 0,
-      affiliate_conversion_count: profile.affiliate_conversion_count || 0,
+      total_signups: profile.total_signups || 0,
+      total_conversions: profile.total_conversions || 0,
       referral_code: profile.referral_code,
       is_affiliate: profile.is_affiliate,
     });
