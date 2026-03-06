@@ -16,8 +16,13 @@ export async function GET(req: Request) {
       .select('id, referral_code, is_affiliate, total_signups, total_conversions')
       .eq('id', user.id)
       .maybeSingle();
-    if (profileErr || !profile) {
-      return NextResponse.json({ error: 'Not an affiliate' }, { status: 404 });
+    if (
+      profileErr ||
+      !profile ||
+      typeof profile !== 'object' ||
+      !('id' in profile)
+    ) {
+      return NextResponse.json({ error: 'Not an affiliate or missing profile columns' }, { status: 404 });
     }
 
     const { data: pendingRows, error: pendingErr } = await admin

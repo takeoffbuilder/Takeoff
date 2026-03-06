@@ -1,3 +1,9 @@
+// Patch: Extend Window interface to allow window.supabase
+declare global {
+  interface Window {
+    supabase: typeof supabase;
+  }
+}
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Button } from '@/components/ui/button';
