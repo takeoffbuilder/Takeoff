@@ -1,3 +1,8 @@
+// Type for referrer object
+type Referrer = {
+  referral_code: string;
+  [key: string]: unknown;
+};
 //
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -105,12 +110,14 @@ export default function AffiliateDashboardPage() {
         if (!computedReferralLink) {
           const referrer = await getMyReferrer();
           if (
-            referrer &&
+            referrer !== null &&
             typeof referrer === 'object' &&
             'referral_code' in referrer &&
-            typeof referrer.referral_code === 'string'
+            typeof (referrer as Referrer).referral_code === 'string'
           ) {
-            computedReferralLink = buildReferralLink(referrer.referral_code);
+            computedReferralLink = buildReferralLink(
+              (referrer as Referrer).referral_code
+            );
           } else {
             const ensured = await ensureReferrer();
             computedReferralLink = ensured?.link || '';
