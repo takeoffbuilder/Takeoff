@@ -224,7 +224,7 @@ export async function generateMonthlyCSV(
   const admin = createAdminClient();
 
   // Detect optional columns on user_personal_info to build a compatible SELECT
-  async function hasCol(table: string, col: string): Promise<boolean> {
+  async function hasCol(table: 'user_booster_accounts' | 'profiles' | 'booster_plans' | 'activity_logs' | 'admin_emails' | 'affiliate_applications' | 'courses' | 'downloaded_courses' | 'payments' | 'referral_payouts' | 'referred_users' | 'user_personal_info', col: string): Promise<boolean> {
     try {
       const { error } = await admin.from(table).select(col).limit(0);
       if (error)
