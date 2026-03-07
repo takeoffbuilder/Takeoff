@@ -92,7 +92,7 @@ export const profileService = {
     const attemptInsert = async (
       omitKeys: string[]
     ): Promise<UserPersonalInfo> => {
-      const payload: Record<string, unknown> = { ...personalData };
+      const payload: UserPersonalInfoInsert = { ...personalData };
       for (const k of omitKeys) delete payload[k];
       const { data, error } = await supabase
         .from('user_personal_info')
