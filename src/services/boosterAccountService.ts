@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { activityService } from './activityService';
 
 type BoosterAccount = Database["public"]["Tables"]["user_booster_accounts"]["Row"];
 type BoosterAccountInsert = Database["public"]["Tables"]["user_booster_accounts"]["Insert"];
