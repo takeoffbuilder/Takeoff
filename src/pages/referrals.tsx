@@ -31,6 +31,9 @@ export default function ReferralsPage() {
     id: string;
     referral_code: string;
     is_affiliate?: boolean;
+    total_clicks?: number;
+    total_signups?: number;
+    lifetime_conversions?: number;
   }
   interface PendingStats {
     pending_count?: number;
