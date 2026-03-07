@@ -80,10 +80,10 @@ export default function SignInPage() {
       // Fetch affiliate and subscriber status
       const statusRes = await fetch(`/api/affiliate/status?userId=${user.id}`);
       const statusData = await statusRes.json();
-      const isAffiliate =
-        statusData.status &&
-        (statusData.status.toLowerCase() === 'approved' ||
-          statusData.status.toLowerCase() === 'active');
+      // const isAffiliate =
+      //   statusData.status &&
+      //   (statusData.status.toLowerCase() === 'approved' ||
+      //     statusData.status.toLowerCase() === 'active');
       const isAffiliateOnly = !!statusData.isAffiliateOnly;
       let isSubscriber = false;
       try {
