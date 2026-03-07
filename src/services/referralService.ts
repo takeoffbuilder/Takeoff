@@ -8,7 +8,7 @@ export async function getMyReferrer() {
   if (!session) return null;
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, referral_code, is_affiliate, affiliate_signup_count, affiliate_conversion_count')
+    .select('id, referral_code, is_affiliate')
     .eq('id', session.user.id)
     .maybeSingle();
   if (error) return null;

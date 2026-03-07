@@ -30,16 +30,12 @@ export default function ReferralsPage() {
   interface ReferrerProfile {
     id: string;
     referral_code: string;
-    is_affiliate: boolean;
-    affiliate_signup_count?: number;
-    affiliate_conversion_count?: number;
+    is_affiliate?: boolean;
   }
   interface PendingStats {
     pending_count?: number;
     pending_total_amount?: number;
     referrer?: ReferrerProfile;
-    affiliate_signup_count?: number;
-    affiliate_conversion_count?: number;
     referral_code?: string;
     is_affiliate?: boolean;
   }
