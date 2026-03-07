@@ -32,13 +32,17 @@ export default function SignUpPage() {
     email: '',
     password: '',
     confirmPassword: '',
+    fullName: '',
   });
-  const [errors, setErrors] = useState<FormErrors>({});
+  const [errors, setErrors] = useState<FormErrors & { fullName?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState('');
 
   const validateForm = (): boolean => {
-    const newErrors: FormErrors = {};
+    const newErrors: FormErrors & { fullName?: string } = {};
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = 'Full name is required';
+    }
 
     // Normalize email before validation
     const normalizedEmail = formData.email.trim().toLowerCase();
@@ -105,6 +109,25 @@ export default function SignUpPage() {
         normalizedEmail,
         formData.password
       );
+
+      // After signup, update profile with full name
+      if (!error) {
+        const user = await authService.getCurrentUser();
+        if (user?.id) {
+          try {
+            await fetch('/api/profile/update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: user.id,
+                fullName: formData.fullName,
+              }),
+            });
+          } catch (profileErr) {
+            console.warn('Profile update failed:', profileErr);
+          }
+        }
+      }
 
       if (error) {
         // Enhanced duplicate email detection
@@ -183,12 +206,9 @@ export default function SignUpPage() {
     (field: keyof typeof formData) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
       let value = e.target.value;
-
-      // Auto-normalize email as user types (trim on blur would be better UX, but this ensures clean data)
       if (field === 'email') {
         value = value.trim().toLowerCase();
       }
-
       setFormData((prev) => ({ ...prev, [field]: value }));
       if (errors[field]) {
         setErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -214,6 +234,29 @@ export default function SignUpPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName" className="text-white">
+                    Full Name
+                  </Label>
+                  <Input
+                    id="fullName"
+                    type="text"
+                    placeholder="Your full name"
+                    value={formData.fullName}
+                    onChange={handleChange('fullName')}
+                    disabled={isSubmitting}
+                    className={`bg-brand-midnight/50 border-brand-sky-blue/30 text-white placeholder:text-gray-500 focus:border-brand-sky-blue focus:ring-brand-sky-blue/50 transition-all duration-300 ${
+                      errors.fullName
+                        ? 'border-red-500 focus:border-red-500 focus:ring-red-500/50'
+                        : ''
+                    }`}
+                  />
+                  {errors.fullName && (
+                    <p className="text-xs text-red-400 animate-fade-in">
+                      {errors.fullName}
+                    </p>
+                  )}
+                </div>
                 {apiError && (
                   <Alert className="bg-red-500/10 border-red-500/30">
                     <AlertCircle className="h-4 w-4 text-red-400" />
