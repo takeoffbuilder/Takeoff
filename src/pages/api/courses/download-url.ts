@@ -3,7 +3,6 @@ import { createAdminClient } from '@/integrations/supabase/admin-client';
 import type { Database } from '@/integrations/supabase/types';
 import { AVAILABLE_COURSES } from '@/services/courseService'; // adjust as needed
 
-type BoosterAccount = Database['public']['Tables']['user_booster_accounts']['Row'];
 type DownloadedCourse = Database['public']['Tables']['downloaded_courses']['Row'];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
