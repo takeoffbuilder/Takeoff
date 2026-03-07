@@ -1,5 +1,8 @@
 import React from 'react';
 import { Input } from '@/components/ui/input';
+// Migration note: Google Maps deprecated AutocompleteService for new customers.
+// use-places-autocomplete may internally use AutocompleteService.
+// If you are a new customer and see errors, switch to a library or custom code using AutocompleteSuggestion.
 import usePlacesAutocomplete, { getGeocode } from 'use-places-autocomplete';
 
 const AddressAutocomplete = ({
@@ -28,6 +31,8 @@ const AddressAutocomplete = ({
       /* Define search scope here if needed */
     },
     debounce: 300,
+    // If you are a new Google Maps customer and get errors, update use-places-autocomplete
+    // to use AutocompleteSuggestion instead of AutocompleteService, or use a compatible library.
   });
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
