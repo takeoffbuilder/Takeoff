@@ -300,7 +300,7 @@ export default function SettingsPage() {
       address: profileData.address,
       city: profileData.city,
       state: profileData.state,
-      zip_code: profileData.postal_code,
+      zip_code: profileData.zipCode,
       updated_at: new Date().toISOString(),
     };
     console.log('Updating profiles table with:', profilePayload);
