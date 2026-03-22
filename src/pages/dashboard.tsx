@@ -65,6 +65,12 @@ interface BoosterAccount {
 // interface UpcomingPayment removed (unused)
 
 export default function DashboardPage() {
+  // Auto-redirect users with no active booster accounts to /choose-plan
+  useEffect(() => {
+    if (!isLoading && !isAffiliate && boosterAccounts.length === 0) {
+      router.replace('/choose-plan');
+    }
+  }, [isLoading, isAffiliate, boosterAccounts.length, router]);
   const { toast } = useToast();
   const [selectedAccount, setSelectedAccount] = useState<BoosterAccount | null>(
     null
