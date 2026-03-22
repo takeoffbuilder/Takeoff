@@ -65,6 +65,10 @@ interface BoosterAccount {
 // interface UpcomingPayment removed (unused)
 
 export default function DashboardPage() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAffiliate, setIsAffiliate] = useState(false);
+  const [boosterAccounts, setBoosterAccounts] = useState<BoosterAccount[]>([]);
+
   // Auto-redirect users with no active booster accounts to /choose-plan
   useEffect(() => {
     if (!isLoading && !isAffiliate && boosterAccounts.length === 0) {
