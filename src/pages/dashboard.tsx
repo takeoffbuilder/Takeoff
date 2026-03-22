@@ -68,6 +68,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAffiliate, setIsAffiliate] = useState(false);
   const [boosterAccounts, setBoosterAccounts] = useState<BoosterAccount[]>([]);
+  const router = useRouter();
 
   // Auto-redirect users with no active booster accounts to /choose-plan
   useEffect(() => {
