@@ -80,12 +80,7 @@ export default function DashboardPage() {
     null
   );
   const [upcomingPayments, setUpcomingPayments] = useState<any[]>([]);
-  const [boosterAccounts, setBoosterAccounts] = useState<BoosterAccount[]>([]);
   const [firstName, setFirstName] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
-  // Affiliate state (Supabase)
-  // Removed unused affiliateCode
-  const [isAffiliate, setIsAffiliate] = useState(false);
   const [isDualRole, setIsDualRole] = useState(false);
   const router = useRouter();
   const [isNavigating, setIsNavigating] = useState(false);
