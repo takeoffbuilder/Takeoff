@@ -83,7 +83,6 @@ export default function DashboardPage() {
   const [upcomingPayments, setUpcomingPayments] = useState<any[]>([]);
   const [firstName, setFirstName] = useState<string>('');
   const [isDualRole, setIsDualRole] = useState(false);
-  const router = useRouter();
   const [isNavigating, setIsNavigating] = useState(false);
   // Removed unused loadingAffiliate
 
