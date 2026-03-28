@@ -10,7 +10,7 @@ if (!endpointSecret)
 const stripe = new Stripe(stripeSecretKey, {
   // apiVersion: '2023-08-16', // Removed to use default or correct type
 });
-//to push
+// Disable body parsing for Stripe webhook signature verification
 export const config = {
   api: {
     bodyParser: false,
@@ -30,14 +30,7 @@ export default async function handler(
   res: NextApiResponse
 ) {
   console.log('Webhook env loaded:', !!process.env.STRIPE_WEBHOOK_SECRET);
-  console.log('Webhook env loaded:', !!process.env.STRIPE_WEBHOOK_SECRET);
   if (req.method !== 'POST') {
-    // Disable body parsing for Stripe webhook signature verification
-    export const config = {
-      api: {
-        bodyParser: false,
-      },
-    };
     res.setHeader('Allow', 'POST');
     return res.status(405).end('Method Not Allowed');
   }
