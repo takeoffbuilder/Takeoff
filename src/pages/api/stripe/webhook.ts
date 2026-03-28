@@ -10,7 +10,7 @@ if (!endpointSecret)
 const stripe = new Stripe(stripeSecretKey, {
   // apiVersion: '2023-08-16', // Removed to use default or correct type
 });
-
+//to push
 export const config = {
   api: {
     bodyParser: false,
