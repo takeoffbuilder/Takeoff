@@ -29,6 +29,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  console.log('Webhook env loaded:', !!process.env.STRIPE_WEBHOOK_SECRET);
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).end('Method Not Allowed');
