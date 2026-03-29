@@ -1,63 +1,133 @@
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import { StarField } from "@/components/StarField";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { CheckCircle, Loader2, AlertCircle } from "lucide-react";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import { StarField } from '@/components/StarField';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+
+type SubscriptionStatusResponse = {
+  status?: string;
+  hasActiveSubscription?: boolean;
+  account?: { status?: string | null } | null;
+  accounts?: Array<{ status?: string | null }>;
+};
 
 export default function SuccessPage() {
   const router = useRouter();
-  const [countdown, setCountdown] = useState(5);
   const [isProcessing, setIsProcessing] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [error] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [attempts, setAttempts] = useState(0);
 
   useEffect(() => {
-    // Get session_id from URL query parameters
+    if (!router.isReady) return;
+
     const { session_id } = router.query;
-    
-    if (session_id && typeof session_id === "string") {
-      setSessionId(session_id);
-      console.log("✅ Stripe session ID captured:", session_id);
+
+    if (!session_id || typeof session_id !== 'string') {
+      setError('Missing payment session. Please check your dashboard.');
+      setIsProcessing(false);
+      return;
     }
 
-    // Give webhook 3-5 seconds to process before showing success
-    const processingTimer = setTimeout(() => {
-      setIsProcessing(false);
-    }, 3000);
+    setSessionId(session_id);
+    console.log('✅ Stripe session ID captured:', session_id);
 
-    // Start countdown after processing completes
-    const countdownTimer = setTimeout(() => {
-      const countdownInterval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(countdownInterval);
-            router.push("/dashboard");
-            return 0;
-          }
-          return prev - 1;
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let currentAttempt = 0;
+    const maxAttempts = 10;
+    const delayMs = 2000;
+
+    const isAccountReady = (data: SubscriptionStatusResponse) => {
+      return (
+        data?.hasActiveSubscription === true ||
+        data?.status === 'active' ||
+        data?.account?.status === 'active' ||
+        (Array.isArray(data?.accounts) &&
+          data.accounts.some((acct) => acct?.status === 'active'))
+      );
+    };
+
+    const checkSubscriptionStatus = async () => {
+      currentAttempt += 1;
+      setAttempts(currentAttempt);
+
+      try {
+        const res = await fetch('/api/subscription/status', {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         });
-      }, 1000);
 
-      return () => clearInterval(countdownInterval);
-    }, 3000);
+        if (!res.ok) {
+          throw new Error(`Status check failed with ${res.status}`);
+        }
+
+        const data: SubscriptionStatusResponse = await res.json();
+        console.log('📦 Subscription status response:', data);
+
+        if (cancelled) return;
+
+        if (isAccountReady(data)) {
+          console.log('✅ Account is ready. Redirecting to dashboard...');
+          router.replace('/dashboard');
+          return;
+        }
+
+        if (currentAttempt >= maxAttempts) {
+          console.warn('⌛ Account not ready after max attempts.');
+          setIsProcessing(false);
+          setError(
+            'Your payment succeeded, but your account is still finishing setup. Please go to your dashboard in a moment.'
+          );
+          return;
+        }
+
+        timeoutId = setTimeout(checkSubscriptionStatus, delayMs);
+      } catch (err) {
+        console.error('❌ Error checking subscription status:', err);
+
+        if (cancelled) return;
+
+        if (currentAttempt >= maxAttempts) {
+          setIsProcessing(false);
+          setError(
+            'Your payment succeeded, but we could not confirm account activation yet. Please go to your dashboard.'
+          );
+          return;
+        }
+
+        timeoutId = setTimeout(checkSubscriptionStatus, delayMs);
+      }
+    };
+
+    timeoutId = setTimeout(checkSubscriptionStatus, 3000);
 
     return () => {
-      clearTimeout(processingTimer);
-      clearTimeout(countdownTimer);
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [router]);
+  }, [router.isReady, router.query, router]);
 
   const handleGoToDashboard = () => {
-    router.push("/dashboard");
+    router.push('/dashboard');
   };
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-gradient-to-b from-brand-midnight via-brand-charcoal to-brand-midnight">
       <StarField />
-      
+
       <div className="absolute inset-0 bg-gradient-radial from-brand-sky-blue/5 via-transparent to-transparent opacity-50" />
-      
+
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
         <Card className="w-full max-w-2xl border-brand-sky-blue/20 bg-brand-charcoal/50 backdrop-blur-xl shadow-xl shadow-brand-sky-blue/5">
           <CardHeader className="text-center space-y-4 pb-2">
@@ -70,7 +140,7 @@ export default function SuccessPage() {
                   Processing Your Payment...
                 </CardTitle>
                 <CardDescription className="text-gray-400 text-lg">
-                  Please wait while we set up your account
+                  Please wait while we activate your account
                 </CardDescription>
               </>
             ) : error ? (
@@ -79,7 +149,7 @@ export default function SuccessPage() {
                   <AlertCircle className="w-10 h-10 text-white" />
                 </div>
                 <CardTitle className="text-3xl font-bold text-red-400">
-                  Payment Issue Detected
+                  Setup Still In Progress
                 </CardTitle>
                 <CardDescription className="text-gray-400 text-lg">
                   {error}
@@ -94,12 +164,12 @@ export default function SuccessPage() {
                   Payment Successful! 🎉
                 </CardTitle>
                 <CardDescription className="text-gray-400 text-lg">
-                  Your account is being activated
+                  Your account is ready
                 </CardDescription>
               </>
             )}
           </CardHeader>
-          
+
           <CardContent className="space-y-6 pt-6">
             {isProcessing ? (
               <div className="space-y-4">
@@ -108,14 +178,27 @@ export default function SuccessPage() {
                   <span>Verifying payment details...</span>
                 </div>
                 <div className="flex items-center gap-3 text-gray-300">
-                  <div className="w-2 h-2 rounded-full bg-brand-sky-blue animate-pulse" style={{ animationDelay: "200ms" }}></div>
+                  <div
+                    className="w-2 h-2 rounded-full bg-brand-sky-blue animate-pulse"
+                    style={{ animationDelay: '200ms' }}
+                  ></div>
                   <span>Creating your booster account...</span>
                 </div>
                 <div className="flex items-center gap-3 text-gray-300">
-                  <div className="w-2 h-2 rounded-full bg-brand-sky-blue animate-pulse" style={{ animationDelay: "400ms" }}></div>
-                  <span>Setting up credit reporting...</span>
+                  <div
+                    className="w-2 h-2 rounded-full bg-brand-sky-blue animate-pulse"
+                    style={{ animationDelay: '400ms' }}
+                  ></div>
+                  <span>Checking subscription activation...</span>
                 </div>
-                
+
+                <div className="bg-brand-midnight/30 rounded-lg p-4 border border-brand-sky-blue/10">
+                  <p className="text-sm text-gray-300 text-center">
+                    Checking activation status
+                    {attempts > 0 ? ` (attempt ${attempts}/10)` : '...'}
+                  </p>
+                </div>
+
                 {sessionId && (
                   <div className="mt-4 pt-4 border-t border-brand-sky-blue/10">
                     <p className="text-xs text-gray-500 text-center">
@@ -128,10 +211,11 @@ export default function SuccessPage() {
               <div className="space-y-4">
                 <div className="bg-red-500/10 rounded-lg p-4 border border-red-500/20">
                   <p className="text-sm text-gray-300 text-center">
-                    We detected an issue with your payment session. Please check your dashboard to see if your account was created.
+                    Your payment appears to have succeeded, but the dashboard
+                    may need another moment to reflect your active plan.
                   </p>
                 </div>
-                
+
                 <Button
                   onClick={handleGoToDashboard}
                   className="w-full bg-gradient-to-r from-brand-sky-blue to-brand-sky-blue-light hover:from-brand-sky-blue-light hover:to-brand-sky-blue text-white"
@@ -146,9 +230,12 @@ export default function SuccessPage() {
                   <div className="flex items-start gap-3">
                     <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-white font-medium">Payment Processed</p>
+                      <p className="text-white font-medium">
+                        Payment Processed
+                      </p>
                       <p className="text-gray-400 text-sm mt-1">
-                        Your subscription has been activated and will renew monthly
+                        Your subscription has been activated and will renew
+                        monthly
                       </p>
                     </div>
                   </div>
@@ -158,7 +245,8 @@ export default function SuccessPage() {
                     <div>
                       <p className="text-white font-medium">Account Created</p>
                       <p className="text-gray-400 text-sm mt-1">
-                        Your booster account is now active and ready to build credit
+                        Your booster account is now active and ready to build
+                        credit
                       </p>
                     </div>
                   </div>
@@ -166,22 +254,14 @@ export default function SuccessPage() {
                   <div className="flex items-start gap-3">
                     <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-white font-medium">Credit Reporting Active</p>
+                      <p className="text-white font-medium">
+                        Redirecting to Dashboard
+                      </p>
                       <p className="text-gray-400 text-sm mt-1">
-                        Your payment history will be reported to TransUnion monthly
+                        Your account has been verified successfully
                       </p>
                     </div>
                   </div>
-                </div>
-
-                <div className="bg-gradient-to-r from-brand-sky-blue/10 to-brand-sky-blue-light/10 rounded-lg p-4 border border-brand-sky-blue/20">
-                  <p className="text-center text-white">
-                    Redirecting to your dashboard in{" "}
-                    <span className="font-bold text-brand-sky-blue text-xl">
-                      {countdown}
-                    </span>{" "}
-                    seconds...
-                  </p>
                 </div>
 
                 <Button
