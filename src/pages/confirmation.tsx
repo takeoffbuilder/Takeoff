@@ -41,6 +41,7 @@ export default function ConfirmationPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SelectedPlan | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
@@ -65,13 +66,46 @@ export default function ConfirmationPage() {
       const profileFromDb = await profileService.getProfile(user.id);
       const plan = localStorage.getItem('selectedPlan');
 
-      if (!personalInfoFromDb || !profileFromDb || !plan) {
+      // If the user already has an active or pending booster account,
+      // they have already completed checkout and should not be sent back
+      // through the confirmation / plan-selection flow.
+      const { data: existingAccount, error: existingAccountError } =
+        await supabase
+          .from('user_booster_accounts')
+          .select('id, status')
+          .eq('user_id', user.id)
+          .in('status', ['active', 'pending'])
+          .maybeSingle();
+
+      if (existingAccountError) {
+        console.error(
+          'Error checking existing booster account:',
+          existingAccountError
+        );
+      }
+
+      if (existingAccount) {
+        router.replace('/dashboard');
+        return;
+      }
+
+      if (!personalInfoFromDb || !profileFromDb) {
         toast({
           title: 'Missing Information',
-          description: 'Please complete all previous steps',
+          description: 'Please complete your personal information first',
           variant: 'destructive',
         });
-        router.push('/personal-info');
+        router.replace('/personal-info');
+        return;
+      }
+
+      if (!plan) {
+        toast({
+          title: 'Plan Selection Required',
+          description: 'Please choose a plan before continuing',
+          variant: 'destructive',
+        });
+        router.replace('/choose-plan');
         return;
       }
 
@@ -103,6 +137,7 @@ export default function ConfirmationPage() {
         };
         setPersonalInfo(personalData);
         setSelectedPlan(JSON.parse(plan));
+        setIsLoading(false);
       } catch (error) {
         console.error('Error loading data:', error);
         toast({
@@ -110,10 +145,13 @@ export default function ConfirmationPage() {
           description: 'Failed to load your information',
           variant: 'destructive',
         });
+        setIsLoading(false);
       }
     };
 
-    loadData();
+    loadData().finally(() => {
+      setIsLoading(false);
+    });
   }, [router, toast]);
 
   // FIXED: Convert MM/DD/YYYY to YYYY-MM-DD for PostgreSQL
@@ -411,7 +449,7 @@ export default function ConfirmationPage() {
     }
   };
 
-  if (!selectedPlan || !personalInfo) {
+  if (isLoading || !selectedPlan || !personalInfo) {
     return (
       <div className="relative min-h-screen w-full overflow-hidden bg-gradient-to-br from-brand-midnight via-brand-charcoal to-brand-midnight flex items-center justify-center">
         <StarField />
