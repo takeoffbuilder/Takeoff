@@ -44,7 +44,8 @@ import { StarField } from '@/components/StarField';
 
 export default function DashboardPage() {
   const router = useRouter();
-
+  const [boosterAccounts, setBoosterAccounts] = useState<BoosterAccount[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   // Affiliate and dual-role state
   const [isAffiliate, setIsAffiliate] = useState(false);
   const [isDualRole, setIsDualRole] = useState(false);
