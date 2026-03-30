@@ -243,10 +243,23 @@ export default function SettingsPage() {
     loadPageData();
   }, [loadPageData]);
 
+  const formatPhoneNumber = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 10);
+
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    }
+
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+  };
+
   const handleInputChange = (field: string, value: string) => {
+    const nextValue = field === 'phone' ? formatPhoneNumber(value) : value;
+
     setProfileData((prev) => ({
       ...prev,
-      [field]: value,
+      [field]: nextValue,
     }));
   };
 
@@ -269,7 +282,6 @@ export default function SettingsPage() {
 
     // Always attempt to update both tables and surface errors
     let personalInfoError = null;
-    let profileError = null;
 
     // Update user_personal_info table
     try {
@@ -293,42 +305,11 @@ export default function SettingsPage() {
       }
     }
 
-    // Update profiles table
-    const profilePayload = {
-      email: profileData.email,
-      phone: profileData.phone,
-      address: profileData.address,
-      city: profileData.city,
-      state: profileData.state,
-      zip_code: profileData.zipCode,
-      updated_at: new Date().toISOString(),
-    };
-    console.log('Updating profiles table with:', profilePayload);
-    try {
-      const result = await profileService.updateProfile(
-        user.id,
-        profilePayload
-      );
-      console.log('Profile update result:', result);
-    } catch (err) {
-      profileError = err;
-      if (err && typeof err === 'object') {
-        console.error(
-          'Profile update error:',
-          JSON.stringify(err, Object.getOwnPropertyNames(err))
-        );
-      } else {
-        console.error('Profile update error:', err);
-      }
-    }
-
     // Surface errors to user
-    if (personalInfoError || profileError) {
+    if (personalInfoError) {
       toast({
         title: 'Update Failed',
-        description:
-          (personalInfoError ? 'Personal info update failed. ' : '') +
-          (profileError ? 'Profile update failed.' : ''),
+        description: 'Personal info update failed.',
         variant: 'destructive',
       });
       return false;
