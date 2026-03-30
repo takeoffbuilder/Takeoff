@@ -670,7 +670,7 @@ export default async function handler(
         // Find affiliate application by stripe_account
         const { data: affiliateApp, error: appError } = await supabase
           .from('affiliate_applications')
-          .select('id, user_id, affiliate_status, stripe_onboarding_url, stripe_account')
+          .select('id, affiliate_status, stripe_onboarding_url, stripe_account')
           .eq('stripe_account', account.id)
           .single();
         if (appError) {
@@ -687,6 +687,31 @@ export default async function handler(
           break;
         }
         console.log('[Webhook] Found affiliate application:', affiliateApp);
+        let profileId: string | null = null;
+        let existingReferralCode: string | null = null;
+
+        if (affiliateApp.stripe_onboarding_url) {
+          const { data: profileRow, error: profileLookupError } = await supabase
+            .from('profiles')
+            .select('id, referral_code')
+            .eq('stripe_onboarding_url', affiliateApp.stripe_onboarding_url)
+            .maybeSingle();
+
+          if (profileLookupError) {
+            console.error(
+              '[Webhook] Error finding profile by stripe_onboarding_url:',
+              profileLookupError
+            );
+          } else if (profileRow) {
+            profileId = profileRow.id;
+            existingReferralCode = profileRow.referral_code || null;
+          }
+        }
+
+        console.log('[Webhook] Resolved profile for affiliate account:', {
+          profileId,
+          stripe_onboarding_url: affiliateApp.stripe_onboarding_url,
+        });
         const onboardingComplete =
           !!account.charges_enabled &&
           !!account.payouts_enabled &&
@@ -716,15 +741,23 @@ const { error: updateStatusError } = await supabase
     payout_setup_complete: true,
     stripe_account: account.id,
   })
-  .eq('id', affiliateApp.id);
-// Also update profiles: set stripe_connect_account_id and is_affiliate = true
-const { error: updateProfileError } = await supabase
-  .from('profiles')
-  .update({
-    stripe_connect_account_id: account.id,
-    is_affiliate: true,
-  })
-  .eq('id', affiliateApp.user_id);
+  .eq('stripe_account', account.id);
+// Also update the matched profile: set stripe_connect_account_id and is_affiliate = true
+let updateProfileError = null;
+if (profileId) {
+  const profileUpdateResult = await supabase
+    .from('profiles')
+    .update({
+      stripe_connect_account_id: account.id,
+      is_affiliate: true,
+    })
+    .eq('id', profileId);
+  updateProfileError = profileUpdateResult.error;
+} else {
+  console.warn(
+    '[Webhook] No matching profile found for affiliate application; skipping profiles update.'
+  );
+}
 if (updateStatusError || updateProfileError) {
   if (updateStatusError) {
     console.error('[Webhook] Failed to update affiliate_applications status:', updateStatusError);
@@ -739,18 +772,15 @@ if (updateStatusError || updateProfileError) {
   );
 }
 // Automate referral code creation in profiles table
-if (affiliateApp.user_id) {
+if (profileId) {
   console.log(
-    '[Webhook] Attempting to create referral code in profiles for user_id:',
-    affiliateApp.user_id
+    '[Webhook] Attempting to create referral code in profiles for profileId:',
+    profileId
   );
             // Automate referral code creation in profiles table
 
-            const { data: profile, error: profileFetchError } = await supabase
-              .from('profiles')
-              .select('referral_code')
-              .eq('id', affiliateApp.user_id)
-              .maybeSingle();
+            const profile = { referral_code: existingReferralCode };
+            const profileFetchError = null;
             if (profileFetchError) {
               console.error(
                 '[Webhook] Error fetching profile:',
@@ -785,7 +815,7 @@ if (affiliateApp.user_id) {
               const { error: updateErr } = await supabase
                 .from('profiles')
                 .update({ referral_code })
-                .eq('id', affiliateApp.user_id);
+                .eq('id', profileId);
               if (updateErr) {
                 console.error(
                   '[Webhook] Failed to set referral_code in profiles:',
@@ -794,19 +824,19 @@ if (affiliateApp.user_id) {
               } else {
                 console.log(
                   '[Webhook] Set referral_code in profiles for user:',
-                  affiliateApp.user_id,
+                  profileId,
                   referral_code
                 );
               }
             } else {
               console.log(
                 '[Webhook] Referrer already exists for user:',
-                affiliateApp.user_id
+                profileId
               );
             }
           } else {
             console.warn(
-              '[Webhook] affiliateApp.user_id is missing, cannot update profile is_affiliate or create referral code.'
+              '[Webhook] No matching profileId found, cannot update profile is_affiliate or create referral code.'
             );
           }
         } else {
