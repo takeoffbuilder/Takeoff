@@ -656,6 +656,7 @@ export default async function handler(
       console.log('[Webhook] account.updated event:', {
         id: account.id,
         charges_enabled: account.charges_enabled,
+        payouts_enabled: account.payouts_enabled,
         details_submitted: account.details_submitted,
         tos_acceptance: account.tos_acceptance,
         requirements: account.requirements,
@@ -669,7 +670,7 @@ export default async function handler(
         // Find affiliate application by stripe_account
         const { data: affiliateApp, error: appError } = await supabase
           .from('affiliate_applications')
-          .select('id, affiliate_status, stripe_onboarding_url')
+          .select('id, user_id, affiliate_status, stripe_onboarding_url, stripe_account')
           .eq('stripe_account', account.id)
           .single();
         if (appError) {
@@ -686,10 +687,26 @@ export default async function handler(
           break;
         }
         console.log('[Webhook] Found affiliate application:', affiliateApp);
+        const onboardingComplete =
+          !!account.charges_enabled &&
+          !!account.payouts_enabled &&
+          !!account.details_submitted &&
+          (account.requirements?.currently_due?.length ?? 0) === 0 &&
+          !account.requirements?.disabled_reason;
+
+        console.log('[Webhook] account.updated completion check:', {
+          onboardingComplete,
+          charges_enabled: account.charges_enabled,
+          payouts_enabled: account.payouts_enabled,
+          details_submitted: account.details_submitted,
+          currently_due: account.requirements?.currently_due,
+          eventually_due: account.requirements?.eventually_due,
+          disabled_reason: account.requirements?.disabled_reason,
+        });
         // If onboarding is complete, update affiliate status, payout_setup_complete, stripe_connect_account_id, and profile
-        if (account.charges_enabled && account.details_submitted) {
+        if (onboardingComplete) {
           console.log(
-            '[Webhook] Stripe account is enabled and details submitted. Attempting to update affiliate status to active.'
+            '[Webhook] Stripe account is onboarding-complete for current use. Attempting to update affiliate status to active.'
           );
 // Update affiliate_applications: set affiliate_status, payout_setup_complete, and stripe_account
 const { error: updateStatusError } = await supabase
@@ -707,7 +724,7 @@ const { error: updateProfileError } = await supabase
     stripe_connect_account_id: account.id,
     is_affiliate: true,
   })
-  .eq('id', affiliateApp.id);
+  .eq('id', affiliateApp.user_id);
 if (updateStatusError || updateProfileError) {
   if (updateStatusError) {
     console.error('[Webhook] Failed to update affiliate_applications status:', updateStatusError);
@@ -722,17 +739,17 @@ if (updateStatusError || updateProfileError) {
   );
 }
 // Automate referral code creation in profiles table
-if (affiliateApp.id) {
+if (affiliateApp.user_id) {
   console.log(
-    '[Webhook] Attempting to create referral code in profiles for id:',
-    affiliateApp.id
+    '[Webhook] Attempting to create referral code in profiles for user_id:',
+    affiliateApp.user_id
   );
             // Automate referral code creation in profiles table
 
             const { data: profile, error: profileFetchError } = await supabase
               .from('profiles')
               .select('referral_code')
-              .eq('id', affiliateApp.id)
+              .eq('id', affiliateApp.user_id)
               .maybeSingle();
             if (profileFetchError) {
               console.error(
@@ -768,7 +785,7 @@ if (affiliateApp.id) {
               const { error: updateErr } = await supabase
                 .from('profiles')
                 .update({ referral_code })
-                .eq('id', affiliateApp.id);
+                .eq('id', affiliateApp.user_id);
               if (updateErr) {
                 console.error(
                   '[Webhook] Failed to set referral_code in profiles:',
@@ -777,24 +794,24 @@ if (affiliateApp.id) {
               } else {
                 console.log(
                   '[Webhook] Set referral_code in profiles for user:',
-                  affiliateApp.id,
+                  affiliateApp.user_id,
                   referral_code
                 );
               }
             } else {
               console.log(
                 '[Webhook] Referrer already exists for user:',
-                affiliateApp.id
+                affiliateApp.user_id
               );
             }
           } else {
             console.warn(
-              '[Webhook] affiliateApp.id is missing, cannot update profile is_affiliate or create referral code.'
+              '[Webhook] affiliateApp.user_id is missing, cannot update profile is_affiliate or create referral code.'
             );
           }
         } else {
           console.log(
-            '[Webhook] Stripe account not enabled or details not submitted, skipping affiliate status update.'
+            '[Webhook] Stripe account not onboarding-complete for current use, skipping affiliate status update.'
           );
         }
       } catch (err) {
