@@ -67,24 +67,39 @@ interface BoosterAccount {
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAffiliate, setIsAffiliate] = useState(false);
+  const [affiliateStatusResolved, setAffiliateStatusResolved] = useState(false);
   const [boosterAccounts, setBoosterAccounts] = useState<BoosterAccount[]>([]);
   const router = useRouter();
 
-  // Auto-redirect users with no active booster accounts to /choose-plan
+  // Redirect to choose-plan only after both dashboard data and affiliate status are known,
+  // and only when the user has neither a subscription account nor affiliate access.
   useEffect(() => {
-    if (!isLoading && !isAffiliate && boosterAccounts.length === 0) {
+    const hasSubscriptionAccess = boosterAccounts.length > 0;
+
+    if (
+      !isLoading &&
+      affiliateStatusResolved &&
+      !hasSubscriptionAccess &&
+      !isAffiliate
+    ) {
       router.replace('/choose-plan');
     }
-  }, [isLoading, isAffiliate, boosterAccounts.length, router]);
+  }, [
+    isLoading,
+    affiliateStatusResolved,
+    isAffiliate,
+    boosterAccounts.length,
+    router,
+  ]);
   const { toast } = useToast();
   const [selectedAccount, setSelectedAccount] = useState<BoosterAccount | null>(
     null
   );
   const [upcomingPayments, setUpcomingPayments] = useState<any[]>([]);
   const [firstName, setFirstName] = useState<string>('');
-  const [isDualRole, setIsDualRole] = useState(false);
-  const [isNavigating, setIsNavigating] = useState(false);
-  // Removed unused loadingAffiliate
+  setIsAffiliate(false);
+  setIsDualRole(false);
+  setAffiliateStatusResolved(true);
 
   useEffect(() => {
     async function fetchAffiliateAndDualRole() {
@@ -92,6 +107,7 @@ export default function DashboardPage() {
       if (!user) {
         setIsAffiliate(false);
         setIsDualRole(false);
+        setAffiliateStatusResolved(true);
         return;
       }
       try {
@@ -138,13 +154,14 @@ export default function DashboardPage() {
           }
         }
 
-        // Use isAffiliateOnly from API - true means affiliate-only (no subscription)
-        const isAffiliateOnlyFromAPI = !!affiliateData?.isAffiliateOnly;
-        console.log('isAffiliateOnly:', isAffiliateOnlyFromAPI);
-        // isDualRole is true if affiliate AND has subscription (opposite of affiliate-only)
-        const dualRole = affiliate && !isAffiliateOnlyFromAPI;
+        const hasSubscriptionAccess = Array.isArray(subStatusData?.accounts)
+          ? subStatusData.accounts.length > 0
+          : false;
+        const dualRole = affiliate && hasSubscriptionAccess;
+        console.log('hasSubscriptionAccess:', hasSubscriptionAccess);
         console.log('isDualRole:', dualRole);
         setIsDualRole(dualRole);
+        setAffiliateStatusResolved(true);
       } catch (e) {
         console.error('Error fetching affiliate status:', e);
         setIsAffiliate(false);
@@ -154,13 +171,27 @@ export default function DashboardPage() {
     fetchAffiliateAndDualRole();
   }, [router.asPath]);
 
-  // Redirect affiliate-only users to affiliate dashboard
+  // Redirect only true affiliate-only users to the affiliate dashboard.
+  // If the user has subscription access, the main dashboard always wins.
   useEffect(() => {
     const bypassAffiliateRedirect = router.query.fromAffiliate === '1';
-    if (isAffiliate && !isDualRole && !bypassAffiliateRedirect) {
+    const hasSubscriptionAccess = boosterAccounts.length > 0;
+
+    if (
+      affiliateStatusResolved &&
+      isAffiliate &&
+      !hasSubscriptionAccess &&
+      !bypassAffiliateRedirect
+    ) {
       router.replace('/affiliate-dashboard');
     }
-  }, [isAffiliate, isDualRole, router, router.query.fromAffiliate]);
+  }, [
+    affiliateStatusResolved,
+    isAffiliate,
+    boosterAccounts.length,
+    router,
+    router.query.fromAffiliate,
+  ]);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [accountToCancel, setAccountToCancel] = useState<string | null>(null);
@@ -550,8 +581,8 @@ export default function DashboardPage() {
     );
   }
 
-  // Redirect affiliate-only users to affiliate dashboard
-  if (isAffiliate && !isDualRole) {
+  // Show affiliate redirect state only for true affiliate-only users.
+  if (affiliateStatusResolved && isAffiliate && boosterAccounts.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-brand-midnight via-brand-charcoal to-brand-midnight">
         <div className="text-center space-y-4">
