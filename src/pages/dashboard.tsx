@@ -6,7 +6,7 @@ import { activityService } from '@/services/activityService';
 import { boosterAccountService } from '@/services/boosterAccountService';
 import { profileService } from '@/services/profileService';
 import { paymentService } from '@/services/paymentService';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/router';
 import {
   Card,
