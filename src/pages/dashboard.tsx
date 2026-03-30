@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { Button } from '@/components/ui/button';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import {
   Card,
   CardContent,
@@ -7,169 +9,46 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { StarField } from '@/components/StarField';
-import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+
 import { Badge } from '@/components/ui/badge';
-import {
-  Calendar,
-  DollarSign,
-  AlertCircle,
-  CreditCard,
-  TrendingUp,
-  Download as DownloadIcon,
-} from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { profileService } from '@/services/profileService';
-import { authService } from '@/services/authService';
-import { boosterAccountService } from '@/services/boosterAccountService';
-import { paymentService } from '@/services/paymentService';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
 } from '@/components/ui/alert-dialog';
-import { activityService } from '@/services/activityService';
-import {
-  getBalanceMetrics,
-  getTrueLimit,
-  getFirstAndRegular,
-  getPlanUtilizationRate,
-} from '@/lib/payment-schedule';
 import { AdminLink } from '@/components/AdminLink';
 
-interface BoosterAccount {
-  id: string;
-  planName: string;
-  monthlyAmount: number;
-  creditLimit: number;
-  status: string;
-  dateAdded: string;
-  nextPaymentDate?: string;
-  availableCredit?: number; // computed (highest credit / available credit)
-  utilizationPct?: number; // computed utilization percentage
-}
+import {
+  Calendar,
+  AlertCircle,
+  DollarSign,
+  TrendingUp,
+  CreditCard,
+} from 'lucide-react';
 
-// interface UpcomingPayment removed (unused)
+import { DownloadIcon } from 'lucide-react';
+
+import { StarField } from '@/components/StarField';
 
 export default function DashboardPage() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAffiliate, setIsAffiliate] = useState(false);
-  const [affiliateStatusResolved, setAffiliateStatusResolved] = useState(false);
-  const [boosterAccounts, setBoosterAccounts] = useState<BoosterAccount[]>([]);
   const router = useRouter();
 
-  // Redirect to choose-plan only after both dashboard data and affiliate status are known,
-  // and only when the user has neither a subscription account nor affiliate access.
-  useEffect(() => {
-    const hasSubscriptionAccess = boosterAccounts.length > 0;
-
-    if (
-      !isLoading &&
-      affiliateStatusResolved &&
-      !hasSubscriptionAccess &&
-      !isAffiliate
-    ) {
-      router.replace('/choose-plan');
-    }
-  }, [
-    isLoading,
-    affiliateStatusResolved,
-    isAffiliate,
-    boosterAccounts.length,
-    router,
-  ]);
-  const { toast } = useToast();
-  const [selectedAccount, setSelectedAccount] = useState<BoosterAccount | null>(
-    null
-  );
-  const [upcomingPayments, setUpcomingPayments] = useState<any[]>([]);
-  const [firstName, setFirstName] = useState<string>('');
-  setIsAffiliate(false);
-  setIsDualRole(false);
-  setAffiliateStatusResolved(true);
-
-  useEffect(() => {
-    async function fetchAffiliateAndDualRole() {
-      const user = await authService.getCurrentUser();
-      if (!user) {
-        setIsAffiliate(false);
-        setIsDualRole(false);
-        setAffiliateStatusResolved(true);
-        return;
-      }
-      try {
-        const [affiliateRes, subStatusRes] = await Promise.all([
-          fetch(`/api/affiliate/status?userId=${user.id}`),
-          fetch(`/api/subscription/status?userId=${user.id}`),
-        ]);
-        const affiliateData = await affiliateRes.json();
-        const subStatusData = await subStatusRes.json();
-        console.log('Affiliate data:', affiliateData);
-        console.log('Sub status data:', subStatusData);
-
-        const affiliate =
-          affiliateData &&
-          affiliateData.status &&
-          (affiliateData.status.toLowerCase() === 'approved' ||
-            affiliateData.status.toLowerCase() === 'active');
-        console.log('isAffiliate:', affiliate);
-        setIsAffiliate(!!affiliate);
-
-        if (affiliate) {
-          try {
-            const existingAffiliateActivity = (
-              await activityService.getUserActivities(user.id, 25)
-            ).some((log: any) => log.activity_type === 'affiliate_joined');
-
-            if (!existingAffiliateActivity) {
-              await activityService.logActivity({
-                user_id: user.id,
-                activity_type: 'affiliate_joined',
-                description: 'Became an affiliate',
-                metadata: {
-                  source: 'dashboard_backfill',
-                },
-              });
-            }
-            // Always refresh activities after affiliate status check to ensure 'became an affiliate' is visible
-            await loadDashboardData({ silent: true });
-          } catch (activityErr) {
-            console.warn(
-              'Could not ensure affiliate_joined activity:',
-              activityErr
-            );
-          }
-        }
-
-        const hasSubscriptionAccess = Array.isArray(subStatusData?.accounts)
-          ? subStatusData.accounts.length > 0
-          : false;
-        const dualRole = affiliate && hasSubscriptionAccess;
-        console.log('hasSubscriptionAccess:', hasSubscriptionAccess);
-        console.log('isDualRole:', dualRole);
-        setIsDualRole(dualRole);
-        setAffiliateStatusResolved(true);
-      } catch (e) {
-        console.error('Error fetching affiliate status:', e);
-        setIsAffiliate(false);
-        setIsDualRole(false);
-      }
-    }
-    fetchAffiliateAndDualRole();
-  }, [router.asPath]);
+  // Affiliate and dual-role state
+  const [isAffiliate, setIsAffiliate] = useState(false);
+  const [isDualRole, setIsDualRole] = useState(false);
+  const [affiliateStatusResolved, setAffiliateStatusResolved] = useState(false);
 
   // Redirect only true affiliate-only users to the affiliate dashboard.
   // If the user has subscription access, the main dashboard always wins.
@@ -205,7 +84,100 @@ export default function DashboardPage() {
     }>
   >([]);
 
-  // Track toast visibility and last allowance to avoid repetition and enable increments
+  // Track affiliate and dual-role status
+  useEffect(() => {
+    async function fetchAffiliateAndDualRole() {
+      const user = await authService.getCurrentUser();
+      if (!user) {
+        setIsAffiliate(false);
+        setIsDualRole(false);
+        setAffiliateStatusResolved(true);
+        return;
+      }
+
+      try {
+        const [affiliateRes, subStatusRes] = await Promise.all([
+          fetch(`/api/affiliate/status?userId=${user.id}`),
+          fetch(`/api/subscription/status?userId=${user.id}`),
+        ]);
+        const affiliateData = await affiliateRes.json();
+        const subStatusData = await subStatusRes.json();
+        console.log('Affiliate data:', affiliateData);
+        console.log('Sub status data:', subStatusData);
+
+        const affiliate =
+          affiliateData &&
+          affiliateData.status &&
+          (affiliateData.status.toLowerCase() === 'approved' ||
+            affiliateData.status.toLowerCase() === 'active');
+        console.log('isAffiliate:', affiliate);
+        setIsAffiliate(!!affiliate);
+
+        if (affiliate) {
+          try {
+            const existingAffiliateActivity = (
+              await activityService.getUserActivities(user.id, 25)
+            ).some((log: any) => log.activity_type === 'affiliate_joined');
+
+            if (!existingAffiliateActivity) {
+              await activityService.logActivity({
+                user_id: user.id,
+                activity_type: 'affiliate_joined',
+                description: 'Became an affiliate',
+                metadata: {
+                  source: 'dashboard_backfill',
+                },
+              });
+            }
+
+            await loadDashboardData({ silent: true });
+          } catch (activityErr) {
+            console.warn(
+              'Could not ensure affiliate_joined activity:',
+              activityErr
+            );
+          }
+        }
+
+        const hasSubscriptionAccess = Array.isArray(subStatusData?.accounts)
+          ? subStatusData.accounts.length > 0
+          : false;
+        const dualRole = !!affiliate && hasSubscriptionAccess;
+        console.log('hasSubscriptionAccess:', hasSubscriptionAccess);
+        console.log('isDualRole:', dualRole);
+        setIsDualRole(dualRole);
+        setAffiliateStatusResolved(true);
+      } catch (e) {
+        console.error('Error fetching affiliate status:', e);
+        setIsAffiliate(false);
+        setIsDualRole(false);
+        setAffiliateStatusResolved(true);
+      }
+    }
+
+    fetchAffiliateAndDualRole();
+  }, [router.asPath]);
+
+  // Redirect to choose-plan only after both dashboard data and affiliate status are known,
+  // and only when the user has neither a subscription account nor affiliate access.
+  useEffect(() => {
+    const hasSubscriptionAccess = boosterAccounts.length > 0;
+
+    if (
+      !isLoading &&
+      affiliateStatusResolved &&
+      !hasSubscriptionAccess &&
+      !isAffiliate
+    ) {
+      router.replace('/choose-plan');
+    }
+  }, [
+    isLoading,
+    affiliateStatusResolved,
+    isAffiliate,
+    boosterAccounts.length,
+    router,
+  ]);
 
   useEffect(() => {
     loadDashboardData();
