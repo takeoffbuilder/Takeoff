@@ -58,6 +58,61 @@ type BoosterAccount = {
   availableCredit: number;
   utilizationPct: number;
 };
+
+const getPlanUtilizationRate = (planName: string): number => {
+  const normalized = (planName || '').toLowerCase();
+
+  if (normalized.includes('starter')) return 0.2;
+  if (normalized.includes('power')) return 0.3;
+  if (normalized.includes('max')) return 0.4;
+  if (normalized.includes('blaster')) return 0.5;
+  if (normalized.includes('super')) return 0.6;
+  if (normalized.includes('star')) return 0.7;
+
+  return 0.3;
+};
+
+const getTrueLimit = (creditLimit: number, utilizationRate: number): number => {
+  return (
+    Math.round((creditLimit * utilizationRate + Number.EPSILON) * 100) / 100
+  );
+};
+
+const getBalanceMetrics = (
+  creditLimit: number,
+  completedCount: number,
+  utilizationRate: number
+): { availableCredit: number; utilizationPct: number } => {
+  const trueLimit = getTrueLimit(creditLimit, utilizationRate);
+  const paymentReduction = completedCount * 10;
+  const currentBalance = Math.max(
+    0,
+    Math.round((trueLimit - paymentReduction + Number.EPSILON) * 100) / 100
+  );
+
+  const availableCredit =
+    Math.round((creditLimit - currentBalance + Number.EPSILON) * 100) / 100;
+
+  const utilizationPct =
+    creditLimit > 0
+      ? Math.min(100, Math.max(0, (currentBalance / creditLimit) * 100))
+      : 0;
+
+  return { availableCredit, utilizationPct };
+};
+
+const getFirstAndRegular = (
+  trueLimit: number
+): { first: number; regular: number } => {
+  const regular = Math.floor(trueLimit);
+  const first =
+    Math.round((trueLimit - regular * 11 + Number.EPSILON) * 100) / 100;
+
+  return {
+    first: first > 0 ? first : regular,
+    regular,
+  };
+};
 export default function DashboardPage() {
   const router = useRouter();
   const [firstName, setFirstName] = useState('');
