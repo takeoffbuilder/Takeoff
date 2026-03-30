@@ -47,10 +47,26 @@ import {
 import { DownloadIcon } from 'lucide-react';
 
 import { StarField } from '@/components/StarField';
-
+type BoosterAccount = {
+  id: string;
+  planName: string;
+  monthlyAmount: number;
+  creditLimit: number;
+  status: string;
+  dateAdded: string;
+  nextPaymentDate?: string | null;
+  availableCredit: number;
+  utilizationPct: number;
+};
 export default function DashboardPage() {
   const router = useRouter();
-  const [boosterAccounts, setBoosterAccounts] = useState<any[]>([]);
+  const [firstName, setFirstName] = useState('');
+  const [upcomingPayments, setUpcomingPayments] = useState<any[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<BoosterAccount | null>(
+    null
+  );
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [boosterAccounts, setBoosterAccounts] = useState<BoosterAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // Affiliate and dual-role state
   const [isAffiliate, setIsAffiliate] = useState(false);
