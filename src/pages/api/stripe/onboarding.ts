@@ -35,11 +35,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .eq('id', userId);
   }
 
+  const baseUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    'http://localhost:3000'
+  ).replace(/\/$/, '');
+
   // Create Stripe onboarding link
   const accountLink = await stripe.accountLinks.create({
     account: stripeAccountId,
-    refresh_url: `${process.env.NEXT_PUBLIC_BASE_URL}/affiliate-confirmation`,
-    return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/affiliate/onboarding/complete`,
+    refresh_url: `${baseUrl}/affiliate-confirmation`,
+    return_url: `${baseUrl}/affiliate/onboarding/complete`,
     type: 'account_onboarding',
   });
 
