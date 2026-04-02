@@ -12,7 +12,7 @@ import { attachReferralIfPresent } from '@/services/referralService';
 
 export default function VerifyEmailPage() {
   const router = useRouter();
-  const { email } = router.query;
+  const { email, intent } = router.query;
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -56,7 +56,7 @@ export default function VerifyEmailPage() {
         attachReferralIfPresent().finally(() => {
           setTimeout(() => {
             // Check if affiliate flow via URL param
-            const isAffiliateFlow = router.query.affiliate === '1';
+            const isAffiliateFlow = intent === 'affiliate';
             if (isAffiliateFlow) {
               router.push('/affiliate-application');
             } else {
@@ -223,7 +223,13 @@ export default function VerifyEmailPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => router.push('/signup')}
+                    onClick={() =>
+                      router.push(
+                        intent === 'affiliate'
+                          ? '/signup?intent=affiliate'
+                          : '/signup'
+                      )
+                    }
                     className="w-full border-brand-sky-blue/30 bg-brand-midnight/30 hover:bg-brand-midnight/50 text-gray-300 hover:text-white transition-all duration-300"
                   >
                     Back to Sign Up
