@@ -68,7 +68,7 @@ export default async function handler(
       lastVerificationError = err;
     }
   }
-
+//web
   if (!verifiedWith) {
     console.error(
       'Webhook signature verification failed for all configured secrets.',
