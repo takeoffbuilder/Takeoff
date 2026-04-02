@@ -24,7 +24,14 @@ export default function VerifyEmailPage() {
       router.push('/signup');
     }
   }, [email, router]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
+    if (intent === 'affiliate') {
+      sessionStorage.setItem('post_verify_intent', 'affiliate');
+      sessionStorage.setItem('post_verify_redirect', '/affiliate-application');
+    }
+  }, [intent]);
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -49,21 +56,31 @@ export default function VerifyEmailPage() {
       }
 
       if (user) {
-        if (typeof window !== 'undefined') {
-          // Auth state managed by Supabase session
+        const isAffiliateFlow =
+          intent === 'affiliate' ||
+          (typeof window !== 'undefined' &&
+            sessionStorage.getItem('post_verify_intent') === 'affiliate');
+
+        if (typeof window !== 'undefined' && isAffiliateFlow) {
+          sessionStorage.setItem('post_verify_intent', 'affiliate');
+          sessionStorage.setItem(
+            'post_verify_redirect',
+            '/affiliate-application'
+          );
         }
-        // Attach referral if present (after verification and authentication)
-        attachReferralIfPresent().finally(() => {
-          setTimeout(() => {
-            // Check if affiliate flow via URL param
-            const isAffiliateFlow = intent === 'affiliate';
-            if (isAffiliateFlow) {
-              router.push('/affiliate-application');
-            } else {
-              router.push('/choose-plan');
-            }
-          }, 1500);
-        });
+
+        try {
+          await attachReferralIfPresent();
+        } catch (err) {
+          console.warn('attachReferralIfPresent failed:', err);
+        }
+
+        if (isAffiliateFlow) {
+          router.replace('/affiliate-application');
+        } else {
+          router.replace('/choose-plan');
+        }
+        return;
       }
     } catch {
       setError('Network error. Please try again.');
