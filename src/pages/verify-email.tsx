@@ -20,16 +20,20 @@ export default function VerifyEmailPage() {
   const [resendSuccess, setResendSuccess] = useState(false);
 
   useEffect(() => {
+    if (!router.isReady) return;
+
     if (!email) {
-      router.push('/signup');
+      router.replace('/signup');
     }
-  }, [email, router]);
+  }, [email, router, router.isReady]);
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     if (intent === 'affiliate') {
       sessionStorage.setItem('post_verify_intent', 'affiliate');
       sessionStorage.setItem('post_verify_redirect', '/affiliate-application');
+      localStorage.setItem('post_verify_intent', 'affiliate');
+      localStorage.setItem('post_verify_redirect', '/affiliate-application');
     }
   }, [intent]);
   const handleVerify = async (e: React.FormEvent) => {
@@ -56,14 +60,23 @@ export default function VerifyEmailPage() {
       }
 
       if (user) {
+        const storedIntent =
+          typeof window !== 'undefined'
+            ? sessionStorage.getItem('post_verify_intent') ||
+              localStorage.getItem('post_verify_intent')
+            : null;
+
         const isAffiliateFlow =
-          intent === 'affiliate' ||
-          (typeof window !== 'undefined' &&
-            sessionStorage.getItem('post_verify_intent') === 'affiliate');
+          intent === 'affiliate' || storedIntent === 'affiliate';
 
         if (typeof window !== 'undefined' && isAffiliateFlow) {
           sessionStorage.setItem('post_verify_intent', 'affiliate');
           sessionStorage.setItem(
+            'post_verify_redirect',
+            '/affiliate-application'
+          );
+          localStorage.setItem('post_verify_intent', 'affiliate');
+          localStorage.setItem(
             'post_verify_redirect',
             '/affiliate-application'
           );
@@ -75,10 +88,16 @@ export default function VerifyEmailPage() {
           console.warn('attachReferralIfPresent failed:', err);
         }
 
-        if (isAffiliateFlow) {
-          router.replace('/affiliate-application');
-        } else {
-          router.replace('/choose-plan');
+        setIsVerifying(false);
+
+        if (typeof window !== 'undefined') {
+          if (isAffiliateFlow) {
+            window.location.replace(
+              '/affiliate-application?intent=affiliate&verified=1'
+            );
+          } else {
+            window.location.replace('/choose-plan');
+          }
         }
         return;
       }
@@ -240,13 +259,32 @@ export default function VerifyEmailPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() =>
+                    onClick={() => {
+                      if (
+                        typeof window !== 'undefined' &&
+                        intent === 'affiliate'
+                      ) {
+                        sessionStorage.setItem(
+                          'post_verify_intent',
+                          'affiliate'
+                        );
+                        sessionStorage.setItem(
+                          'post_verify_redirect',
+                          '/affiliate-application'
+                        );
+                        localStorage.setItem('post_verify_intent', 'affiliate');
+                        localStorage.setItem(
+                          'post_verify_redirect',
+                          '/affiliate-application'
+                        );
+                      }
+
                       router.push(
                         intent === 'affiliate'
                           ? '/signup?intent=affiliate'
                           : '/signup'
-                      )
-                    }
+                      );
+                    }}
                     className="w-full border-brand-sky-blue/30 bg-brand-midnight/30 hover:bg-brand-midnight/50 text-gray-300 hover:text-white transition-all duration-300"
                   >
                     Back to Sign Up
