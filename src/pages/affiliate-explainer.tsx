@@ -27,7 +27,7 @@ export default function AffiliateExplainerPage() {
         <Button
           size="lg"
           className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold text-lg"
-          onClick={() => router.push('/affiliate-application')}
+          onClick={() => router.push('/signup?intent=affiliate')}
         >
           Apply Now
         </Button>

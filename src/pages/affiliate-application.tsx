@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { Button } from '@/components/ui/button';
 import { authService } from '@/services/authService';
 import { profileService } from '@/services/profileService';
@@ -66,7 +67,19 @@ const normalizeStateToCode = (state: string) => {
   return US_STATE_CODES[normalizedKey] || trimmed.toUpperCase();
 };
 
+type AuthUserLike = {
+  email_confirmed_at?: string | null;
+  confirmed_at?: string | null;
+  user_metadata?: {
+    email_verified?: boolean;
+  } | null;
+  app_metadata?: {
+    email_verified?: boolean;
+  } | null;
+};
+
 export default function AffiliateApplicationPage() {
+  const router = useRouter();
   // Minimal address validation
   const validateAddress = (form: {
     address: string;
@@ -95,6 +108,8 @@ export default function AffiliateApplicationPage() {
     email: '',
   });
   const [showSSN, setShowSSN] = useState(false);
+  const [initializing, setInitializing] = useState(true);
+  const [isVerifiedUser, setIsVerifiedUser] = useState(false);
 
   // Validation helpers
   const validatePhone = (phone: string) => {
@@ -118,42 +133,59 @@ export default function AffiliateApplicationPage() {
     async function fetchUserData() {
       try {
         const user = await authService.getCurrentUser();
+        const authUser = user as AuthUserLike | null;
 
-        if (user) {
-          const personalInfo = await profileService.getPersonalInfo(user.id);
+        if (!user) {
+          router.replace('/signup?intent=affiliate');
+          return;
+        }
 
-          if (personalInfo) {
-            // Pre-fill form with user data
-            setForm((prev) => ({
-              ...prev,
-              email: user.email || prev.email,
-              first_name: personalInfo.first_name || prev.first_name,
-              last_name: personalInfo.last_name || prev.last_name,
-              phone: personalInfo.phone || prev.phone,
-              address: personalInfo.address || prev.address,
-              address2: personalInfo.address2 || prev.address2,
-              city: personalInfo.city || prev.city,
-              state: normalizeStateToCode(personalInfo.state || prev.state),
-              postal_code: personalInfo.zip_code || prev.postal_code,
-              ssn_last_four: personalInfo.ssn_last_four || prev.ssn_last_four,
-              dob: convertISOToMMDDYYYY(personalInfo.date_of_birth || prev.dob),
-            }));
-          } else {
-            // If no personal info, at least set the email
-            setForm((prev) => ({ ...prev, email: user.email }));
-          }
+        const verified = Boolean(
+          authUser?.email_confirmed_at ||
+            authUser?.confirmed_at ||
+            authUser?.user_metadata?.email_verified ||
+            authUser?.app_metadata?.email_verified
+        );
+
+        if (!verified) {
+          router.replace('/verify-email?intent=affiliate');
+          return;
+        }
+
+        setIsVerifiedUser(true);
+
+        const personalInfo = await profileService.getPersonalInfo(user.id);
+
+        if (personalInfo) {
+          setForm((prev) => ({
+            ...prev,
+            email: user.email || prev.email,
+            first_name: personalInfo.first_name || prev.first_name,
+            last_name: personalInfo.last_name || prev.last_name,
+            phone: personalInfo.phone || prev.phone,
+            address: personalInfo.address || prev.address,
+            address2: personalInfo.address2 || prev.address2,
+            city: personalInfo.city || prev.city,
+            state: normalizeStateToCode(personalInfo.state || prev.state),
+            postal_code: personalInfo.zip_code || prev.postal_code,
+            ssn_last_four: personalInfo.ssn_last_four || prev.ssn_last_four,
+            dob: convertISOToMMDDYYYY(personalInfo.date_of_birth || prev.dob),
+          }));
+        } else {
+          setForm((prev) => ({ ...prev, email: user.email || prev.email }));
         }
       } catch (err) {
         console.error('Failed to load user data:', err);
-        // Still try to load email as fallback
-        const user = await authService.getCurrentUser();
-        if (user && user.email) {
-          setForm((prev) => ({ ...prev, email: user.email }));
-        }
+        setError(
+          'Unable to load your application right now. Please try again.'
+        );
+      } finally {
+        setInitializing(false);
       }
     }
+
     fetchUserData();
-  }, []);
+  }, [router]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -248,6 +280,21 @@ export default function AffiliateApplicationPage() {
       setSubmitting(false);
     }
   };
+
+  if (initializing || !isVerifiedUser) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-brand-midnight via-brand-charcoal to-brand-midnight text-white">
+        <div className="bg-brand-charcoal/80 rounded-xl shadow-lg p-8 max-w-md w-full text-center space-y-4">
+          <h1 className="text-2xl font-bold text-brand-sky-blue">
+            Preparing your affiliate application...
+          </h1>
+          <p className="text-gray-300">
+            Please wait while we verify your account.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-brand-midnight via-brand-charcoal to-brand-midnight">
