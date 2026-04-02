@@ -128,12 +128,39 @@ export default function ChoosePlanPage() {
   const referralAttached = useRef(false);
   const [user, setUser] = useState(null);
   // Redirect affiliate-only users away from this page
+  // Redirect affiliate-intent users away from subscriber plan selection.
   useEffect(() => {
-    const isAffiliate = router.query.affiliate === '1';
-    if (isAffiliate) {
-      router.replace('/affiliate-explainer');
+    if (!router.isReady) return;
+
+    const queryIntent = router.query.intent;
+    const isAffiliateQuery =
+      queryIntent === 'affiliate' || router.query.affiliate === '1';
+
+    const storedIntent =
+      typeof window !== 'undefined'
+        ? sessionStorage.getItem('post_verify_intent') ||
+          localStorage.getItem('post_verify_intent')
+        : null;
+
+    const redirectTarget =
+      typeof window !== 'undefined'
+        ? sessionStorage.getItem('post_verify_redirect') ||
+          localStorage.getItem('post_verify_redirect')
+        : null;
+
+    const isAffiliateFlow = isAffiliateQuery || storedIntent === 'affiliate';
+
+    if (isAffiliateFlow) {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('post_verify_intent');
+        sessionStorage.removeItem('post_verify_redirect');
+        localStorage.removeItem('post_verify_intent');
+        localStorage.removeItem('post_verify_redirect');
+      }
+
+      router.replace(redirectTarget || '/affiliate-application');
     }
-  }, [router]);
+  }, [router, router.isReady, router.query.affiliate, router.query.intent]);
   const { toast } = useToast();
   const { mode } = router.query;
   const isAddingAccount = mode === 'add';
