@@ -4,6 +4,7 @@ import { createAdminClient } from '@/integrations/supabase/admin-client';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+const connectEndpointSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
 if (!stripeSecretKey) throw new Error('Missing STRIPE_SECRET_KEY env variable');
 if (!endpointSecret)
   throw new Error('Missing STRIPE_WEBHOOK_SECRET env variable');
@@ -29,7 +30,10 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  console.log('Webhook env loaded:', !!process.env.STRIPE_WEBHOOK_SECRET);
+  console.log('Webhook env loaded:', {
+    platform: !!process.env.STRIPE_WEBHOOK_SECRET,
+    connect: !!process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
+  });
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).end('Method Not Allowed');
@@ -44,17 +48,40 @@ export default async function handler(
 
   let event: Stripe.Event;
 
-  try {
-    event = stripe.webhooks.constructEvent(buf, String(sig), endpointSecret);
-    console.log('Stripe webhook received → has signature | writes: on');
-    console.log('Webhook signature verified');
-    console.log('Stripe event type:', event.type);
-  } catch (err) {
-    console.error('Webhook signature verification failed.', err);
+  const secretsToTry = [endpointSecret, connectEndpointSecret].filter(
+    Boolean
+  ) as string[];
+
+  let verifiedWith: 'platform' | 'connect' | null = null;
+  let lastVerificationError: unknown = null;
+
+  for (const secret of secretsToTry) {
+    try {
+      event = stripe.webhooks.constructEvent(buf, String(sig), secret);
+      verifiedWith = secret === endpointSecret ? 'platform' : 'connect';
+      console.log('Stripe webhook received → has signature | writes: on');
+      console.log('Webhook signature verified');
+      console.log('Webhook secret matched:', verifiedWith);
+      console.log('Stripe event type:', event.type);
+      break;
+    } catch (err) {
+      lastVerificationError = err;
+    }
+  }
+
+  if (!verifiedWith) {
+    console.error(
+      'Webhook signature verification failed for all configured secrets.',
+      lastVerificationError
+    );
     return res
       .status(400)
       .send(
-        `Webhook Error: ${err instanceof Error ? err.message : 'Unknown error'}`
+        `Webhook Error: ${
+          lastVerificationError instanceof Error
+            ? lastVerificationError.message
+            : 'Unknown error'
+        }`
       );
   }
 
