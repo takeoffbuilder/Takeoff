@@ -113,6 +113,7 @@ const getFirstAndRegular = (
     regular,
   };
 };
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export default function DashboardPage() {
   const router = useRouter();
   const [firstName, setFirstName] = useState('');
@@ -248,13 +249,23 @@ export default function DashboardPage() {
     const pollFn = async () => {
       pollCount++;
       try {
-        const user = await authService.getCurrentUser();
+        let user = await authService.getCurrentUser();
+
+        if (!user) {
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            await wait(300);
+            user = await authService.getCurrentUser();
+            if (user) break;
+          }
+        }
+
         if (user) {
           const accounts = await boosterAccountService.getUserAccounts(user.id);
           const hasAccount = accounts && accounts.length > 0;
           if (hasAccount) {
             if (pollInterval) clearInterval(pollInterval);
             pollStopped = true;
+            await loadDashboardData({ silent: true });
             return;
           }
           // ...existing code for updating UI, toasts, etc...
@@ -281,16 +292,32 @@ export default function DashboardPage() {
     try {
       if (!opts?.silent) setIsLoading(true);
 
-      // Get current authenticated user
-      const user = await authService.getCurrentUser();
+      // Get current authenticated user, but give auth/session a brief chance
+      // to hydrate after checkout/redirect before treating it as a real sign-out.
+      let user = await authService.getCurrentUser();
 
       if (!user) {
-        toast({
-          title: 'Authentication Required',
-          description: 'Please sign in to view your dashboard.',
-          variant: 'destructive',
-        });
-        router.push('/signin');
+        for (let attempt = 1; attempt <= 5; attempt++) {
+          await wait(500);
+          user = await authService.getCurrentUser();
+          if (user) {
+            console.log(
+              `✅ Dashboard auth recovered after retry ${attempt}/5.`
+            );
+            break;
+          }
+        }
+      }
+
+      if (!user) {
+        if (!opts?.silent) {
+          toast({
+            title: 'Authentication Required',
+            description: 'Please sign in to view your dashboard.',
+            variant: 'destructive',
+          });
+          router.push('/signin');
+        }
         return;
       }
 
