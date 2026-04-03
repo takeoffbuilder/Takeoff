@@ -36,6 +36,20 @@ export default function VerifyEmailPage() {
       localStorage.setItem('post_verify_redirect', '/affiliate-application');
     }
   }, [intent]);
+
+  const getPostVerifyRedirect = () => {
+    if (typeof window === 'undefined') return null;
+
+    const storedRedirect =
+      sessionStorage.getItem('post_verify_redirect') ||
+      localStorage.getItem('post_verify_redirect');
+
+    if (storedRedirect) return storedRedirect;
+    if (intent === 'affiliate') return '/affiliate-application';
+
+    return null;
+  };
+
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -60,14 +74,10 @@ export default function VerifyEmailPage() {
       }
 
       if (user) {
-        const storedIntent =
-          typeof window !== 'undefined'
-            ? sessionStorage.getItem('post_verify_intent') ||
-              localStorage.getItem('post_verify_intent')
-            : null;
-
+        const postVerifyRedirect = getPostVerifyRedirect();
         const isAffiliateFlow =
-          intent === 'affiliate' || storedIntent === 'affiliate';
+          postVerifyRedirect === '/affiliate-application' ||
+          intent === 'affiliate';
 
         if (typeof window !== 'undefined' && isAffiliateFlow) {
           sessionStorage.setItem('post_verify_intent', 'affiliate');
@@ -91,12 +101,35 @@ export default function VerifyEmailPage() {
         setIsVerifying(false);
 
         if (typeof window !== 'undefined') {
-          if (isAffiliateFlow) {
-            window.location.replace(
-              '/affiliate-application?intent=affiliate&verified=1'
-            );
+          if (postVerifyRedirect) {
+            const target =
+              postVerifyRedirect === '/affiliate-application'
+                ? '/affiliate-application?intent=affiliate&verified=1'
+                : postVerifyRedirect;
+            window.location.replace(target);
           } else {
-            window.location.replace('/choose-plan');
+            try {
+              const res = await fetch(
+                `/api/subscription/status?userId=${encodeURIComponent(user.id)}`
+              );
+              const data = await res.json();
+
+              const hasSubscription =
+                data?.isSubscriber === true ||
+                data?.hasActiveSubscription === true ||
+                data?.status === 'active' ||
+                data?.status === 'pending' ||
+                (Array.isArray(data?.accounts) && data.accounts.length > 0);
+
+              if (hasSubscription) {
+                window.location.replace('/dashboard');
+              } else {
+                window.location.replace('/choose-plan');
+              }
+            } catch (err) {
+              console.error('Post-verify routing check failed:', err);
+              window.location.replace('/dashboard');
+            }
           }
         }
         return;

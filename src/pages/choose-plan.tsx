@@ -198,31 +198,39 @@ export default function ChoosePlanPage() {
         const user = await authService.getCurrentUser();
         setUser(user);
         if (!user) return;
+
         // Check admin status
         const admin = await isAdmin(user.email);
         setShowAdminButton(admin);
-        if (isAddingAccount) {
-          const [active, pending] = await Promise.all([
-            boosterAccountService.getUserAccountsByStatus(user.id, 'active'),
-            boosterAccountService.getUserAccountsByStatus(user.id, 'pending'),
-          ]);
-          interface AccountWithPlanSlug {
-            booster_plans?: { plan_slug?: string | null } | null;
-          }
-          const slugs = [
-            ...(active as AccountWithPlanSlug[]),
-            ...(pending as AccountWithPlanSlug[]),
-          ]
-            .map((acc) => acc.booster_plans?.plan_slug || undefined)
-            .filter((s): s is string => Boolean(s));
-          setOwnedPlanSlugs(Array.from(new Set(slugs)));
+
+        // Always fetch active and pending accounts to determine subscriber state
+        const [active, pending] = await Promise.all([
+          boosterAccountService.getUserAccountsByStatus(user.id, 'active'),
+          boosterAccountService.getUserAccountsByStatus(user.id, 'pending'),
+        ]);
+
+        interface AccountWithPlanSlug {
+          booster_plans?: { plan_slug?: string | null } | null;
         }
+
+        const allAccounts = [
+          ...(active as AccountWithPlanSlug[]),
+          ...(pending as AccountWithPlanSlug[]),
+        ];
+
+        const slugs = allAccounts
+          .map((acc) => acc.booster_plans?.plan_slug || undefined)
+          .filter((s): s is string => Boolean(s));
+
+        // Always set owned plans so subscriber state is correct
+        setOwnedPlanSlugs(Array.from(new Set(slugs)));
       } catch (e) {
         console.error('Failed to load existing plans for disablement', e);
       }
     };
+
     loadOwnedAndAdmin();
-  }, [isAddingAccount]);
+  }, []);
 
   const ownedSet = useMemo(() => new Set(ownedPlanSlugs), [ownedPlanSlugs]);
   const isLoggedIn = !!user; // however you get the user object
@@ -342,7 +350,7 @@ export default function ChoosePlanPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {plans.map((plan, index) => {
-                const disabled = ownedSet.has(plan.id);
+                const disabled = isAddingAccount && ownedSet.has(plan.id);
                 return (
                   <Card
                     key={index}
