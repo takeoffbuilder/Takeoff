@@ -117,7 +117,7 @@ export default function SuccessPage() {
 
         if (isAccountReady(data)) {
           console.log('✅ Account is ready. Redirecting to dashboard...');
-          router.replace('/dashboard');
+          router.replace('/dashboard?fromCheckout=1');
           return;
         }
 
@@ -163,7 +163,7 @@ export default function SuccessPage() {
   }, [router.isReady, router.query, router]);
 
   const handleGoToDashboard = () => {
-    router.push('/dashboard');
+    router.push('/dashboard?fromCheckout=1');
   };
 
   return (
