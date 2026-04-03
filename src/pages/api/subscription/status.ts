@@ -2,9 +2,12 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createAdminClient } from '@/integrations/supabase/admin-client';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const userId = req.query.userId as string;
+  const userId = (req.query.userId as string) || null;
+
+  // If no userId is provided, don't hard-fail. Return not-subscribed so
+  // the client can retry once auth/session is available.
   if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(200).json({ isSubscriber: false });
   }
 
   const supabase = createAdminClient();
