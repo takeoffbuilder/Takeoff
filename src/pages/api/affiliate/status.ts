@@ -32,7 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     .maybeSingle();
   if (profile?.referral_code) {
     referralCode = profile.referral_code;
-    const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const base = process.env.NEXT_PUBLIC_APP_URL || 'https://www.takeoffbuilder.com';
     referralLink = `${base}/?ref=${encodeURIComponent(referralCode)}`;
   }
 

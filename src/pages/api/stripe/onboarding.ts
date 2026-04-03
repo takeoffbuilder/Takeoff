@@ -39,7 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.NEXT_PUBLIC_BASE_URL ||
-    'http://localhost:3000'
+    'https://www.takeoffbuilder.com'
   ).replace(/\/$/, '');
 
   // Create Stripe onboarding link
