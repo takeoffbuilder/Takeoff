@@ -18,6 +18,7 @@ interface FormErrors {
 
 export default function SignUpPage() {
   const router = useRouter();
+  const intent = (router.query.intent as string) || '';
   // Capture referral code from URL if present
   const referralCode = router.query.ref as string | undefined;
   // Store referral code in localStorage if present and changes
@@ -191,9 +192,24 @@ export default function SignUpPage() {
       }
 
       setTimeout(() => {
-        router.push(
-          `/verify-email?email=${encodeURIComponent(normalizedEmail)}`
-        );
+        if (typeof window !== 'undefined' && intent === 'affiliate') {
+          sessionStorage.setItem('post_verify_intent', 'affiliate');
+          sessionStorage.setItem(
+            'post_verify_redirect',
+            '/affiliate-application'
+          );
+          localStorage.setItem('post_verify_intent', 'affiliate');
+          localStorage.setItem(
+            'post_verify_redirect',
+            '/affiliate-application'
+          );
+        }
+
+        const base = `/verify-email?email=${encodeURIComponent(normalizedEmail)}`;
+        const url = intent
+          ? `${base}&intent=${encodeURIComponent(intent)}`
+          : base;
+        router.push(url);
       }, 1000);
     } catch (error) {
       console.error('Signup error:', error);
