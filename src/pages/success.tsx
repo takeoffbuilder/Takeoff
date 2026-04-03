@@ -121,9 +121,7 @@ export default function SuccessPage() {
           setIsProcessing(false);
           setError(null);
           // Auto-redirect to dashboard after a brief moment
-          setTimeout(() => {
-            if (!cancelled) router.push('/dashboard?fromCheckout=1');
-          }, 2000);
+          router.replace('/dashboard?fromCheckout=1');
           return;
         }
 
@@ -166,7 +164,7 @@ export default function SuccessPage() {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [router.isReady, sessionIdQuery]);
+  }, [router, router.isReady, sessionIdQuery]);
 
   const handleGoToDashboard = () => {
     router.push('/dashboard?fromCheckout=1');
