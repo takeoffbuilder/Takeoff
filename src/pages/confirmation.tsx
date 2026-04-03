@@ -66,29 +66,6 @@ export default function ConfirmationPage() {
       const profileFromDb = await profileService.getProfile(user.id);
       const plan = localStorage.getItem('selectedPlan');
 
-      // If the user already has an active or pending booster account,
-      // they have already completed checkout and should not be sent back
-      // through the confirmation / plan-selection flow.
-      const { data: existingAccount, error: existingAccountError } =
-        await supabase
-          .from('user_booster_accounts')
-          .select('id, status')
-          .eq('user_id', user.id)
-          .in('status', ['active', 'pending'])
-          .maybeSingle();
-
-      if (existingAccountError) {
-        console.error(
-          'Error checking existing booster account:',
-          existingAccountError
-        );
-      }
-
-      if (existingAccount) {
-        router.replace('/dashboard');
-        return;
-      }
-
       if (!personalInfoFromDb || !profileFromDb) {
         toast({
           title: 'Missing Information',
@@ -100,15 +77,19 @@ export default function ConfirmationPage() {
       }
 
       if (!plan) {
+        // Do not force users back to choose-plan if localStorage was already
+        // cleared after checkout or if they are returning from a completed flow.
+        // Only send them back if this page truly cannot render a confirmation.
+        setIsLoading(false);
         toast({
-          title: 'Plan Selection Required',
-          description: 'Please choose a plan before continuing',
+          title: 'Plan Selection Missing',
+          description:
+            'We could not find the selected plan for this confirmation step. Please return to your dashboard or choose a new plan if you are starting a new purchase.',
           variant: 'destructive',
         });
-        router.replace('/choose-plan');
+        router.replace('/dashboard');
         return;
       }
-
       try {
         // Helper function to convert ISO format (YYYY-MM-DD) to MM/DD/YYYY
         const convertISOToMMDDYYYY = (isoDate: string): string => {
