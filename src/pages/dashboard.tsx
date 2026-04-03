@@ -236,27 +236,6 @@ export default function DashboardPage() {
     fetchAffiliateAndDualRole();
   }, [router.asPath]);
 
-  // Redirect to choose-plan only after both dashboard data and affiliate status are known,
-  // and only when the user has neither a subscription account nor affiliate access.
-  useEffect(() => {
-    const hasSubscriptionAccess = boosterAccounts.length > 0;
-
-    if (
-      !isLoading &&
-      affiliateStatusResolved &&
-      !hasSubscriptionAccess &&
-      !isAffiliate
-    ) {
-      router.replace('/choose-plan');
-    }
-  }, [
-    isLoading,
-    affiliateStatusResolved,
-    isAffiliate,
-    boosterAccounts.length,
-    router,
-  ]);
-
   useEffect(() => {
     loadDashboardData();
 
