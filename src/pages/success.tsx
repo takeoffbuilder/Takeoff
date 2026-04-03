@@ -23,6 +23,7 @@ type SubscriptionStatusResponse = {
 
 export default function SuccessPage() {
   const router = useRouter();
+  const sessionIdQuery = router.query.session_id as string | undefined;
   const [isProcessing, setIsProcessing] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +32,7 @@ export default function SuccessPage() {
   useEffect(() => {
     if (!router.isReady) return;
 
-    const { session_id } = router.query;
+    const session_id = sessionIdQuery;
 
     if (!session_id || typeof session_id !== 'string') {
       setError('Missing payment session. Please check your dashboard.');
@@ -116,8 +117,11 @@ export default function SuccessPage() {
         if (cancelled) return;
 
         if (isAccountReady(data)) {
-          console.log('✅ Account is ready. Redirecting to dashboard...');
-          router.replace('/dashboard?fromCheckout=1');
+          console.log(
+            '✅ Account is ready. Staying on success page for manual redirect.'
+          );
+          setIsProcessing(false);
+          setError(null);
           return;
         }
 
@@ -160,7 +164,7 @@ export default function SuccessPage() {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [router.isReady, router.query, router]);
+  }, [router.isReady, sessionIdQuery]);
 
   const handleGoToDashboard = () => {
     router.push('/dashboard?fromCheckout=1');
