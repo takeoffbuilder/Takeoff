@@ -232,6 +232,14 @@ export default function ChoosePlanPage() {
     loadOwnedAndAdmin();
   }, []);
 
+  // Redirect existing subscribers to dashboard if they land here without ?mode=add
+  useEffect(() => {
+    if (ownedPlanSlugs.length > 0 && !isAddingAccount) {
+      console.log('Subscriber landed on choose-plan without ?mode=add — redirecting to dashboard');
+      router.replace('/dashboard');
+    }
+  }, [ownedPlanSlugs, isAddingAccount, router]);
+
   const ownedSet = useMemo(() => new Set(ownedPlanSlugs), [ownedPlanSlugs]);
   const isLoggedIn = !!user; // however you get the user object
   const isSubscriber = ownedPlanSlugs.length > 0; // or your actual logic for active plans
