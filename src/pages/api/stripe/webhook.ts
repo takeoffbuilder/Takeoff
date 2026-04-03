@@ -420,7 +420,7 @@ export default async function handler(
   }
 
   // Handle the event
-  switch (event.type) {
+  switch (event.type as string) {
     case 'invoice.paid': {
       // This event fires when a recurring payment is successful
       const invoice = event.data.object as Stripe.Invoice;
