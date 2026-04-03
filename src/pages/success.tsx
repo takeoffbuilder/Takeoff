@@ -117,11 +117,11 @@ export default function SuccessPage() {
         if (cancelled) return;
 
         if (isAccountReady(data)) {
-          console.log('✅ Account is ready. Redirecting to dashboard.');
+          console.log(
+            '✅ Account is ready. Staying on success page for manual redirect.'
+          );
           setIsProcessing(false);
           setError(null);
-          // Auto-redirect to dashboard after a brief moment
-          router.replace('/dashboard?fromCheckout=1');
           return;
         }
 
