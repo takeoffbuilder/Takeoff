@@ -18,12 +18,346 @@ export const config = {
   },
 };
 
+
 async function buffer(readable: NodeJS.ReadableStream) {
   const chunks = [];
   for await (const chunk of readable) {
     chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
   }
   return Buffer.concat(chunks);
+}
+
+async function handlePaidInvoice(
+  invoice: Stripe.Invoice,
+  stripe: Stripe,
+  supabase: ReturnType<typeof createAdminClient>
+) {
+  const subscriptionId =
+    typeof invoice.subscription === 'string'
+      ? invoice.subscription
+      : invoice.subscription?.id || null;
+
+  const nextPaymentTimestamp =
+    invoice.lines?.data?.[0]?.period?.end || invoice.next_payment_attempt;
+
+  let nextPaymentDate: string | null = null;
+  if (nextPaymentTimestamp) {
+    const d = new Date(nextPaymentTimestamp * 1000);
+    nextPaymentDate = d.toISOString().split('T')[0];
+  }
+
+  if (!subscriptionId) {
+    console.warn('[Webhook] No subscriptionId found for paid invoice.', {
+      invoiceId: invoice.id,
+    });
+    return { handled: false, reason: 'missing_subscription_id' };
+  }
+
+  const { data: account, error: fetchError } = await supabase
+    .from('user_booster_accounts')
+    .select('id, user_id, plan_slug')
+    .eq('stripe_subscription_id', subscriptionId)
+    .maybeSingle();
+
+  if (fetchError) {
+    console.error(
+      '[Webhook] Error fetching booster account for paid invoice:',
+      fetchError
+    );
+    return { handled: false, reason: 'account_fetch_error', error: fetchError };
+  }
+
+  if (!account || !account.id) {
+    console.warn('[Webhook] No matching booster account for paid invoice.', {
+      invoiceId: invoice.id,
+      subscriptionId,
+      nextPaymentDate,
+    });
+    return { handled: false, reason: 'missing_account' };
+  }
+
+  let updateError = null;
+  if (nextPaymentDate) {
+    const updateResult = await supabase
+      .from('user_booster_accounts')
+      .update({ next_payment_date: nextPaymentDate })
+      .eq('id', account.id);
+    updateError = updateResult.error;
+  }
+
+  let alreadyExists = false;
+
+  if (invoice.id) {
+    const { data: existingByInvoice } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('stripe_invoice_id', invoice.id)
+      .maybeSingle();
+    if (existingByInvoice) alreadyExists = true;
+  }
+
+  let stripe_checkout_id = null;
+  const stripe_customer_id = invoice.customer || null;
+  const plan_slug = account.plan_slug || null;
+
+  if (!alreadyExists && invoice.subscription) {
+    console.log(
+      '[Webhook] Looking for booster account with stripe_subscription_id:',
+      subscriptionId
+    );
+    const { data: paymentSession } = await supabase
+      .from('payments')
+      .select('stripe_checkout_id')
+      .eq('user_id', account.user_id)
+      .eq('plan_slug', plan_slug)
+      .maybeSingle();
+
+    if (paymentSession && paymentSession.stripe_checkout_id) {
+      stripe_checkout_id = paymentSession.stripe_checkout_id;
+      const { data: existingByCheckout } = await supabase
+        .from('payments')
+        .select('id')
+        .eq('stripe_checkout_id', stripe_checkout_id)
+        .maybeSingle();
+      if (existingByCheckout) alreadyExists = true;
+    }
+  }
+
+  if (!alreadyExists) {
+    let payment_method_id = null;
+    if (typeof invoice.payment_intent === 'string') {
+      try {
+        const paymentIntent = await stripe.paymentIntents.retrieve(
+          invoice.payment_intent
+        );
+        payment_method_id = paymentIntent.payment_method || null;
+      } catch (err) {
+        console.warn(
+          '[Webhook] Could not fetch payment method for PaymentIntent:',
+          invoice.payment_intent,
+          err
+        );
+      }
+    }
+
+    const paymentInsertPayload = {
+      user_id: account.user_id,
+      booster_account_id: account.id,
+      stripe_invoice_id: invoice.id,
+      stripe_checkout_id,
+      stripe_customer_id:
+        typeof stripe_customer_id === 'string'
+          ? stripe_customer_id
+          : stripe_customer_id?.id ?? '',
+      plan_slug,
+      amount: invoice.amount_paid / 100,
+      currency: invoice.currency || null,
+      status: 'completed',
+      created_at: new Date().toISOString(),
+      payment_type: 'subscription',
+      payment_method_id,
+    };
+
+    console.log('[Webhook] Attempting payments insert:', paymentInsertPayload);
+    const { error: paymentInsertError, data: paymentInsertData } =
+      await supabase.from('payments').insert(paymentInsertPayload);
+    console.log('[Webhook] Payments insert result:', {
+      paymentInsertError,
+      paymentInsertData,
+    });
+
+    if (paymentInsertError) {
+      console.error('[Webhook] Error inserting payment:', paymentInsertError);
+      return {
+        handled: false,
+        reason: 'payment_insert_error',
+        error: paymentInsertError,
+      };
+    } else {
+      console.log(
+        '[Webhook] Inserted payment for user:',
+        account.user_id,
+        'invoice:',
+        invoice.id
+      );
+      try {
+        const adminClient = createAdminClient();
+        await adminClient.from('activity_logs').insert({
+          user_id: account.user_id,
+          activity_type: 'payment_made',
+          description: `Payment of $${paymentInsertPayload.amount} processed`,
+          metadata: {
+            amount: paymentInsertPayload.amount,
+            plan_name: plan_slug,
+          },
+        });
+      } catch (logErr) {
+        console.warn('[Webhook] Failed to log payment activity:', logErr);
+      }
+    }
+  }
+
+  const { data: payments, error: paymentsError } = await supabase
+    .from('payments')
+    .select('id')
+    .eq('user_id', account.user_id)
+    .eq('booster_account_id', account.id)
+    .eq('status', 'completed')
+    .eq('payment_type', 'subscription');
+
+  if (!paymentsError && payments && payments.length >= 2) {
+    console.log('[Webhook] Referral conversion check:', {
+      user_id: account.user_id,
+      booster_account_id: account.id,
+      payments_count: payments.length,
+      payments_ids: payments.map((p) => p.id),
+    });
+
+    const { data: referred, error: referredError } = await supabase
+      .from('referred_users')
+      .select('referrer_id')
+      .eq('referred_user_id', account.user_id)
+      .maybeSingle();
+
+    console.log('[Webhook] Fetched referred_users:', {
+      referred_user_id: account.user_id,
+      referred,
+      referredError,
+    });
+
+    if (!referredError && referred && referred.referrer_id) {
+      const referralUpdatePayload = {
+        converted: true,
+        conversion_at: new Date().toISOString(),
+        payout_status: 'approved',
+        payout_amount: 10.0,
+      };
+      const { error: referralUpdateError, data: referralUpdateData } =
+        await supabase
+          .from('referred_users')
+          .update(referralUpdatePayload)
+          .eq('referred_user_id', account.user_id);
+
+      console.log('[Webhook] Referral update attempt:', {
+        referred_user_id: account.user_id,
+        referralUpdatePayload,
+        referralUpdateError,
+        referralUpdateData,
+      });
+
+      if (referralUpdateError) {
+        console.error(
+          '[Webhook] Error updating referred_users for conversion:',
+          referralUpdateError
+        );
+      } else {
+        console.log(
+          '[Webhook] Set referred_users.converted=true and payout_status=approved for',
+          account.user_id
+        );
+      }
+
+      const { data: affiliateProfile, error: fetchProfileError } = await supabase
+        .from('profiles')
+        .select('total_signups')
+        .eq('id', referred.referrer_id)
+        .maybeSingle();
+
+      console.log('[Webhook] Fetched affiliate profile:', {
+        referrer_id: referred.referrer_id,
+        affiliateProfile,
+        fetchProfileError,
+      });
+
+      if (fetchProfileError || !affiliateProfile) {
+        console.error(
+          '[Webhook] Error fetching affiliate profile for total_signups increment:',
+          fetchProfileError
+        );
+      } else {
+        const newTotalSignups = (affiliateProfile.total_signups || 0) + 1;
+        const { error: profileUpdateError, data: profileUpdateData } =
+          await supabase
+            .from('profiles')
+            .update({ total_signups: newTotalSignups })
+            .eq('id', referred.referrer_id);
+
+        console.log('[Webhook] Affiliate profile update attempt:', {
+          referrer_id: referred.referrer_id,
+          newTotalSignups,
+          profileUpdateError,
+          profileUpdateData,
+        });
+
+        if (profileUpdateError) {
+          console.error(
+            '[Webhook] Error updating total_signups in affiliate profile:',
+            profileUpdateError
+          );
+        } else {
+          console.log(
+            '[Webhook] Incremented total_signups for affiliate:',
+            referred.referrer_id
+          );
+        }
+      }
+
+      const now = new Date();
+      const period_year = now.getUTCFullYear();
+      const period_month = now.getUTCMonth() + 1;
+
+      const payoutPayload = {
+        referrer_id: referred.referrer_id,
+        period_year,
+        period_month,
+        amount: 10.0,
+        conversions: 1,
+        created_at: new Date().toISOString(),
+        status: 'approved',
+      };
+      const { error: payoutInsertError, data: payoutInsertData } =
+        await supabase.from('referral_payouts').insert(payoutPayload);
+
+      console.log('[Webhook] Referral payout insert attempt:', {
+        payoutPayload,
+        payoutInsertError,
+        payoutInsertData,
+      });
+
+      if (payoutInsertError) {
+        console.error(
+          '[Webhook] Error inserting referral_payouts:',
+          payoutInsertError
+        );
+      } else {
+        console.log(
+          '[Webhook] Created referral_payout record for referrer:',
+          referred.referrer_id,
+          'and user:',
+          account.user_id
+        );
+      }
+    }
+  }
+
+  if (updateError) {
+    console.error('[Webhook] Error updating next_payment_date:', updateError);
+  } else if (nextPaymentDate) {
+    console.log(
+      '[Webhook] Updated next_payment_date for account',
+      account.id,
+      'to',
+      nextPaymentDate
+    );
+  }
+
+  return {
+    handled: true,
+    accountId: account.id,
+    userId: account.user_id,
+    invoiceId: invoice.id,
+    nextPaymentDate,
+  };
 }
 
 export default async function handler(
@@ -90,256 +424,54 @@ export default async function handler(
     case 'invoice.paid': {
       // This event fires when a recurring payment is successful
       const invoice = event.data.object as Stripe.Invoice;
-      const subscriptionId = invoice.subscription as string;
-      const nextPaymentTimestamp =
-        invoice.lines?.data?.[0]?.period?.end || invoice.next_payment_attempt;
-      let nextPaymentDate: string | null = null;
-      if (nextPaymentTimestamp) {
-        // Convert to YYYY-MM-DD
-        const d = new Date(nextPaymentTimestamp * 1000);
-        nextPaymentDate = d.toISOString().split('T')[0];
-      }
       try {
         const supabase = createAdminClient();
-        // Find the booster account by Stripe subscription ID
-        const { data: account, error: fetchError } = await supabase
-          .from('user_booster_accounts')
-          .select('id, user_id, plan_slug')
-          .eq('stripe_subscription_id', subscriptionId)
-          .maybeSingle();
-        if (fetchError) {
-          console.error('[Webhook] Error fetching booster account for invoice.paid:', fetchError);
-          break;
+        const result = await handlePaidInvoice(invoice, stripe, supabase);
+
+        if (!result.handled) {
+          console.warn('[Webhook] invoice.paid was not fully handled:', result);
         }
-        if (account && account.id && nextPaymentDate) {
-          // Update next_payment_date
-          const { error: updateError } = await supabase
-            .from('user_booster_accounts')
-            .update({ next_payment_date: nextPaymentDate })
-            .eq('id', account.id);
 
-          // Idempotency: Prevent duplicate payment records for the same invoice or checkout session
-          let alreadyExists = false;
-          // Check by invoice_id
-          if (invoice.id) {
-            const { data: existingByInvoice } = await supabase
-              .from('payments')
-              .select('id')
-              .eq('stripe_invoice_id', invoice.id)
-              .maybeSingle();
-            if (existingByInvoice) alreadyExists = true;
-          }
-          // Check by checkout_id if not already found
-          let stripe_checkout_id = null;
-          const stripe_customer_id = invoice.customer || null;
-          const plan_slug = account.plan_slug || null;
-          if (!alreadyExists && invoice.subscription) {
-            console.log('[Webhook] Looking for booster account with stripe_subscription_id:', subscriptionId);
-            const { data: paymentSession } = await supabase
-              .from('payments')
-              .select('stripe_checkout_id')
-              .eq('user_id', account.user_id)
-              .eq('plan_slug', plan_slug)
-              .maybeSingle();
-            if (paymentSession && paymentSession.stripe_checkout_id) {
-              stripe_checkout_id = paymentSession.stripe_checkout_id;
-              // Check for existing payment by checkout_id
-              const { data: existingByCheckout } = await supabase
-                .from('payments')
-                .select('id')
-                .eq('stripe_checkout_id', stripe_checkout_id)
-                .maybeSingle();
-              if (existingByCheckout) alreadyExists = true;
-            }
-          }
-          if (!alreadyExists) {
-            // Fetch payment method ID from PaymentIntent if available
-            let payment_method_id = null;
-            if (typeof invoice.payment_intent === 'string') {
-              try {
-                const paymentIntent = await stripe.paymentIntents.retrieve(invoice.payment_intent);
-                payment_method_id = paymentIntent.payment_method || null;
-              } catch (err) {
-                console.warn('[Webhook] Could not fetch payment method for PaymentIntent:', invoice.payment_intent, err);
-              }
-            }
-            const paymentInsertPayload = {
-              user_id: account.user_id,
-              booster_account_id: account.id,
-              stripe_invoice_id: invoice.id,
-              stripe_checkout_id,
-              stripe_customer_id: typeof stripe_customer_id === 'string' ? stripe_customer_id : (stripe_customer_id?.id ?? ''),
-              plan_slug,
-              amount: invoice.amount_paid / 100,
-              currency: invoice.currency || null,
-              status: 'completed',
-              created_at: new Date().toISOString(),
-              payment_type: 'subscription',
-              payment_method_id,
-            };
-            console.log('[Webhook] Attempting payments insert:', paymentInsertPayload);
-            const { error: paymentInsertError, data: paymentInsertData } = await supabase.from('payments').insert(paymentInsertPayload);
-            console.log('[Webhook] Payments insert result:', { paymentInsertError, paymentInsertData });
-            if (paymentInsertError) {
-              console.error('[Webhook] Error inserting payment:', paymentInsertError);
-              return res.status(500).json({ error: 'Failed to insert payment', details: paymentInsertError });
-            } else {
-              console.log('[Webhook] Inserted payment for user:', account.user_id, 'invoice:', invoice.id);
-              // Log payment activity using admin client
-              try {
-                const adminClient = createAdminClient();
-                await adminClient
-                  .from('activity_logs')
-                  .insert({
-                    user_id: account.user_id,
-                    activity_type: 'payment_made',
-                    description: `Payment of $${paymentInsertPayload.amount} processed`,
-                    metadata: { amount: paymentInsertPayload.amount, plan_name: plan_slug }
-                  });
-              } catch (logErr) {
-                console.warn('[Webhook] Failed to log payment activity:', logErr);
-              }
-            }
-          }
-
-          // --- Referral crediting after second payment ---
-          // Count completed subscription payments for this account
-          const { data: payments, error: paymentsError } = await supabase
-            .from('payments')
-            .select('id')
-            .eq('user_id', account.user_id)
-            .eq('booster_account_id', account.id)
-            .eq('status', 'completed')
-            .eq('payment_type', 'subscription');
-
-          if (!paymentsError && payments && payments.length >= 2) {
-            // Enhanced logging for referral conversion
-            console.log('[Webhook] Referral conversion check:', {
-              user_id: account.user_id,
-              booster_account_id: account.id,
-              payments_count: payments.length,
-              payments_ids: payments.map(p => p.id),
-            });
-            // Check if user was referred
-            const { data: referred, error: referredError } = await supabase
-              .from('referred_users')
-              .select('referrer_id')
-              .eq('referred_user_id', account.user_id)
-              .maybeSingle();
-            console.log('[Webhook] Fetched referred_users:', {
-              referred_user_id: account.user_id,
-              referred,
-              referredError,
-            });
-            if (!referredError && referred && referred.referrer_id) {
-              // Mark the referral as converted and payout_status as approved
-              const referralUpdatePayload = {
-                converted: true,
-                conversion_at: new Date().toISOString(),
-                payout_status: 'approved',
-                payout_amount: 10.0,
-              };
-              const { error: referralUpdateError, data: referralUpdateData } = await supabase
-                .from('referred_users')
-                .update(referralUpdatePayload)
-                .eq('referred_user_id', account.user_id);
-              console.log('[Webhook] Referral update attempt:', {
-                referred_user_id: account.user_id,
-                referralUpdatePayload,
-                referralUpdateError,
-                referralUpdateData,
-              });
-              if (referralUpdateError) {
-                console.error('[Webhook] Error updating referred_users for conversion:', referralUpdateError);
-              } else {
-                console.log('[Webhook] Set referred_users.converted=true and payout_status=approved for', account.user_id);
-              }
-
-              // Increment total_signups in affiliate's profile (read-modify-write)
-              const { data: affiliateProfile, error: fetchProfileError } = await supabase
-                .from('profiles')
-                .select('total_signups')
-                .eq('id', referred.referrer_id)
-                .maybeSingle();
-              console.log('[Webhook] Fetched affiliate profile:', {
-                referrer_id: referred.referrer_id,
-                affiliateProfile,
-                fetchProfileError,
-              });
-              if (fetchProfileError || !affiliateProfile) {
-                console.error('[Webhook] Error fetching affiliate profile for total_signups increment:', fetchProfileError);
-              } else {
-                const newTotalSignups = (affiliateProfile.total_signups || 0) + 1;
-                const { error: profileUpdateError, data: profileUpdateData } = await supabase
-                  .from('profiles')
-                  .update({ total_signups: newTotalSignups })
-                  .eq('id', referred.referrer_id);
-                console.log('[Webhook] Affiliate profile update attempt:', {
-                  referrer_id: referred.referrer_id,
-                  newTotalSignups,
-                  profileUpdateError,
-                  profileUpdateData,
-                });
-                if (profileUpdateError) {
-                  console.error('[Webhook] Error updating total_signups in affiliate profile:', profileUpdateError);
-                } else {
-                  console.log('[Webhook] Incremented total_signups for affiliate:', referred.referrer_id);
-                }
-              }
-
-              // Optionally, insert a payout record for the affiliate
-              const now = new Date();
-              const period_year = now.getUTCFullYear();
-              const period_month = now.getUTCMonth() + 1;
-
-              const payoutPayload = {
-                referrer_id: referred.referrer_id,
-                period_year,
-                period_month,
-                amount: 10.0, // Example fixed amount, adjust as needed
-                conversions: 1,
-                created_at: new Date().toISOString(),
-                status: 'approved',
-              };
-              const { error: payoutInsertError, data: payoutInsertData } = await supabase.from('referral_payouts').insert(payoutPayload);
-              console.log('[Webhook] Referral payout insert attempt:', {
-                payoutPayload,
-                payoutInsertError,
-                payoutInsertData,
-              });
-              if (payoutInsertError) {
-                console.error('[Webhook] Error inserting referral_payouts:', payoutInsertError);
-              } else {
-                console.log('[Webhook] Created referral_payout record for referrer:', referred.referrer_id, 'and user:', account.user_id);
-              }
-            }
-          }
-
-          if (updateError) {
-            console.error(
-              '[Webhook] Error updating next_payment_date:',
-              updateError
-            );
-          } else {
-            console.log(
-              '[Webhook] Updated next_payment_date for account',
-              account.id,
-              'to',
-              nextPaymentDate
-            );
-          }
-        } else {
-          console.warn(
-            '[Webhook] No matching booster account or nextPaymentDate for invoice.paid.'
-          );
-        }
-        // Confirm receipt of invoice.paid event
-        return res.status(200).json({ received: true, stripe_invoice_id: invoice.id });
+        return res
+          .status(200)
+          .json({ received: true, stripe_invoice_id: invoice.id });
       } catch (err) {
         console.error('[Webhook] Error handling invoice.paid:', err);
         return res.status(200).json({ received: true, stripe_invoice_id: invoice.id });
       }
       break;
+    }
+    case 'invoice_payment.paid': {
+      try {
+        const invoicePayment = event.data.object as Stripe.InvoicePayment;
+        const invoiceId =
+          typeof invoicePayment.invoice === 'string'
+            ? invoicePayment.invoice
+            : invoicePayment.invoice?.id || null;
+
+        if (!invoiceId) {
+          console.warn(
+            '[Webhook] invoice_payment.paid missing invoice reference.'
+          );
+          return res.status(200).json({ received: true, invoiceId: null });
+        }
+
+        const invoice = await stripe.invoices.retrieve(invoiceId);
+        const supabase = createAdminClient();
+        const result = await handlePaidInvoice(invoice, stripe, supabase);
+
+        if (!result.handled) {
+          console.warn(
+            '[Webhook] invoice_payment.paid was not fully handled:',
+            result
+          );
+        }
+
+        return res.status(200).json({ received: true, stripe_invoice_id: invoice.id });
+      } catch (err) {
+        console.error('[Webhook] Error handling invoice_payment.paid:', err);
+        return res.status(200).json({ received: true, stripe_invoice_id: null });
+      }
     }
     case 'customer.created': {
       const customer = event.data.object as Stripe.Customer;
