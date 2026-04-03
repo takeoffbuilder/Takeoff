@@ -116,6 +116,7 @@ const getFirstAndRegular = (
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export default function DashboardPage() {
   const router = useRouter();
+  const fromCheckout = router.query.fromCheckout === '1';
   const [firstName, setFirstName] = useState('');
   const [upcomingPayments, setUpcomingPayments] = useState<any[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<BoosterAccount | null>(
@@ -310,7 +311,7 @@ export default function DashboardPage() {
       }
 
       if (!user) {
-        if (!opts?.silent) {
+        if (!opts?.silent && !fromCheckout) {
           toast({
             title: 'Authentication Required',
             description: 'Please sign in to view your dashboard.',
