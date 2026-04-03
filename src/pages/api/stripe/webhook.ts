@@ -443,12 +443,14 @@ export default async function handler(
     }
     case 'invoice_payment.paid': {
       try {
-        const invoicePayment = event.data.object as Stripe.InvoicePayment;
-        const invoiceId =
-          typeof invoicePayment.invoice === 'string'
-            ? invoicePayment.invoice
-            : invoicePayment.invoice?.id || null;
+        const invoicePayment = event.data.object as {
+        invoice?: string | { id?: string | null } | null;
+};
 
+        const invoiceId =
+  typeof invoicePayment.invoice === 'string'
+    ? invoicePayment.invoice
+    : invoicePayment.invoice?.id || null;
         if (!invoiceId) {
           console.warn(
             '[Webhook] invoice_payment.paid missing invoice reference.'
