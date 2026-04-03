@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { authService } from '@/services/authService';
 import { StarField } from '@/components/StarField';
 import {
   Card,
@@ -13,7 +14,9 @@ import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 
 type SubscriptionStatusResponse = {
   status?: string;
+  isSubscriber?: boolean;
   hasActiveSubscription?: boolean;
+  pendingAuth?: boolean;
   account?: { status?: string | null } | null;
   accounts?: Array<{ status?: string | null }>;
 };
@@ -40,6 +43,8 @@ export default function SuccessPage() {
     console.log('✅ Stripe session ID captured:', session_id);
 
     let cancelled = false;
+    let authRetryCount = 0;
+    const maxAuthRetries = 5;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let currentAttempt = 0;
     const maxAttempts = 10;
@@ -47,11 +52,16 @@ export default function SuccessPage() {
 
     const isAccountReady = (data: SubscriptionStatusResponse) => {
       return (
+        data?.isSubscriber === true ||
         data?.hasActiveSubscription === true ||
         data?.status === 'active' ||
+        data?.status === 'pending' ||
         data?.account?.status === 'active' ||
+        data?.account?.status === 'pending' ||
         (Array.isArray(data?.accounts) &&
-          data.accounts.some((acct) => acct?.status === 'active'))
+          data.accounts.some(
+            (acct) => acct?.status === 'active' || acct?.status === 'pending'
+          ))
       );
     };
 
@@ -60,13 +70,41 @@ export default function SuccessPage() {
       setAttempts(currentAttempt);
 
       try {
-        const res = await fetch('/api/subscription/status', {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+        const user = await authService.getCurrentUser();
+
+        if (!user?.id) {
+          authRetryCount += 1;
+          console.warn(
+            `⏳ Auth/session not ready yet (attempt ${authRetryCount}/${maxAuthRetries}).`
+          );
+
+          if (cancelled) return;
+
+          if (
+            authRetryCount >= maxAuthRetries &&
+            currentAttempt >= maxAttempts
+          ) {
+            setIsProcessing(false);
+            setError(
+              'Your payment succeeded, but we could not confirm your session yet. Please sign in again and go to your dashboard.'
+            );
+            return;
+          }
+
+          timeoutId = setTimeout(checkSubscriptionStatus, delayMs);
+          return;
+        }
+
+        const res = await fetch(
+          `/api/subscription/status?userId=${encodeURIComponent(user.id)}`,
+          {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
 
         if (!res.ok) {
           throw new Error(`Status check failed with ${res.status}`);
@@ -80,6 +118,12 @@ export default function SuccessPage() {
         if (isAccountReady(data)) {
           console.log('✅ Account is ready. Redirecting to dashboard...');
           router.replace('/dashboard');
+          return;
+        }
+
+        if (data?.pendingAuth === true) {
+          console.warn('⏳ Subscription status reports pending auth/session.');
+          timeoutId = setTimeout(checkSubscriptionStatus, delayMs);
           return;
         }
 
