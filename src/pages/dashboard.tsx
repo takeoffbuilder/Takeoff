@@ -739,7 +739,7 @@ export default function DashboardPage() {
             <div className="text-center space-y-4">
               <h2 className="text-4xl font-bold text-white">
                 {firstName
-                  ? `Welcome back, ${firstName}!`
+                  ? `Welcome ${firstName}!`
                   : 'Welcome to Your Dashboard'}
               </h2>
               <p className="text-xl text-gray-400">

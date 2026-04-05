@@ -120,6 +120,16 @@ export default function AffiliateApplicationPage() {
     // Accept MM/DD/YYYY only
     return /^\d{2}\/\d{2}\/\d{4}$/.test(dob.trim());
   };
+
+  const formatPhoneNumber = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 10);
+
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    }
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  };
   // Remove unused validateState, validateZip, validateAddress
   // Convert ISO date (YYYY-MM-DD) to MM/DD/YYYY
   const convertISOToMMDDYYYY = (isoDate: string): string => {
@@ -362,7 +372,12 @@ export default function AffiliateApplicationPage() {
             type="text"
             placeholder="Phone Number"
             value={form.phone}
-            onChange={handleChange}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                phone: formatPhoneNumber(e.target.value),
+              }))
+            }
             required
             autoComplete="tel"
             pattern="(\\(\\d{3}\\)\\s?|\\d{3}[-.\\s]?)\\d{3}[-.\\s]?\\d{4}"
