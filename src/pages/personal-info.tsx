@@ -482,7 +482,14 @@ export default function PersonalInfoPage() {
         duration: 2000,
       });
       setTimeout(() => {
-        router.push('/confirmation');
+        const selectedPlan = localStorage.getItem('selectedPlan');
+        const encodedPlan = selectedPlan
+          ? encodeURIComponent(selectedPlan)
+          : '';
+
+        router.push(
+          encodedPlan ? `/confirmation?plan=${encodedPlan}` : '/confirmation'
+        );
       }, 2000);
     } catch (error: unknown) {
       console.error('Failed saving personal info:', error);

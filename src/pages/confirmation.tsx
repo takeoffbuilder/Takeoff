@@ -64,7 +64,11 @@ export default function ConfirmationPage() {
       // Load personal info from database instead of localStorage
       const personalInfoFromDb = await profileService.getPersonalInfo(user.id);
       const profileFromDb = await profileService.getProfile(user.id);
-      const plan = localStorage.getItem('selectedPlan');
+      const planFromQuery =
+        typeof router.query.plan === 'string'
+          ? decodeURIComponent(router.query.plan)
+          : null;
+      const plan = planFromQuery || localStorage.getItem('selectedPlan');
 
       if (!personalInfoFromDb || !profileFromDb) {
         toast({
@@ -81,7 +85,7 @@ export default function ConfirmationPage() {
         // cleared after checkout or if they are returning from a completed flow.
         // Only send them back if this page truly cannot render a confirmation.
         console.log(
-          '[confirmation] missing selectedPlan → redirect /dashboard',
+          '[confirmation] missing selectedPlan → redirect /choose-plan',
           {
             plan,
             userId: user.id,
@@ -96,7 +100,7 @@ export default function ConfirmationPage() {
             'We could not find the selected plan for this confirmation step. Please return to your dashboard or choose a new plan if you are starting a new purchase.',
           variant: 'destructive',
         });
-        router.replace('/dashboard');
+        router.replace('/choose-plan');
         return;
       }
       try {
@@ -142,7 +146,7 @@ export default function ConfirmationPage() {
     loadData().finally(() => {
       setIsLoading(false);
     });
-  }, [router, toast]);
+  }, [router, router.query.plan, toast]);
 
   // FIXED: Convert MM/DD/YYYY to YYYY-MM-DD for PostgreSQL
   const convertDateToPostgresFormat = (dateString: string): string => {
