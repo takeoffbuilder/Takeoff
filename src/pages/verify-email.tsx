@@ -120,7 +120,11 @@ export default function VerifyEmailPage() {
                 data?.status === 'active' ||
                 data?.status === 'pending' ||
                 (Array.isArray(data?.accounts) && data.accounts.length > 0);
-
+              console.log('Post-verify routing decision', {
+                userId: user.id,
+                data,
+                hasSubscription,
+              });
               if (hasSubscription) {
                 window.location.replace('/dashboard');
               } else {
