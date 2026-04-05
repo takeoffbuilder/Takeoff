@@ -33,24 +33,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const firstAccount = normalizedAccounts[0] || null;
   const hasActiveSubscription = normalizedAccounts.length > 0;
 
-  let isSubscriber = hasActiveSubscription;
-  let status = hasActiveSubscription
+  const isSubscriber = hasActiveSubscription;
+  const status = hasActiveSubscription
     ? firstAccount?.status || 'active'
     : 'none';
-
-  if (!hasActiveSubscription) {
-    // Option 2: Fallback to profile.status if present
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('status')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (profile && profile.status && profile.status.toLowerCase() === 'active') {
-      isSubscriber = true;
-      status = 'active';
-    }
-  }
 
   res.status(200).json({
     isSubscriber,
