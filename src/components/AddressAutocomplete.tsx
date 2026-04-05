@@ -3,7 +3,12 @@ import { Input } from '@/components/ui/input';
 
 declare global {
   interface Window {
-    google: unknown;
+    google?: {
+      maps?: {
+        importLibrary?: (name: string) => Promise<unknown>;
+        places?: unknown;
+      };
+    };
   }
 }
 
