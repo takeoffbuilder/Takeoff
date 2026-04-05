@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 
+declare global {
+  interface Window {
+    google: unknown;
+  }
+}
+
 type AddressSelection = {
   street: string;
   city: string;
