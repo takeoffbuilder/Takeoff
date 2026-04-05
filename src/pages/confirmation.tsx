@@ -80,6 +80,15 @@ export default function ConfirmationPage() {
         // Do not force users back to choose-plan if localStorage was already
         // cleared after checkout or if they are returning from a completed flow.
         // Only send them back if this page truly cannot render a confirmation.
+        console.log(
+          '[confirmation] missing selectedPlan → redirect /dashboard',
+          {
+            plan,
+            userId: user.id,
+            href:
+              typeof window !== 'undefined' ? window.location.href : 'server',
+          }
+        );
         setIsLoading(false);
         toast({
           title: 'Plan Selection Missing',
