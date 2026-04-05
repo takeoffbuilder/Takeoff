@@ -132,7 +132,8 @@ export default function VerifyEmailPage() {
               }
             } catch (err) {
               console.error('Post-verify routing check failed:', err);
-              window.location.replace('/dashboard');
+              // Fallback for new users; send to onboarding of dashboard
+              window.location.replace('/choose-plan');
             }
           }
         }
