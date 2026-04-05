@@ -79,6 +79,13 @@ export async function POST(req: Request) {
     const successUrl = `${base}/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${base}/payment?canceled=1`;
 
+    console.log('[checkout] host resolution', {
+  forwardedProto,
+  forwardedHost,
+  base,
+  successUrl,
+  cancelUrl,
+});
     // Look up Stripe customer ID from profiles table
     const supabase = createAdminClient();
     const { data: profile } = await supabase
@@ -111,7 +118,12 @@ export async function POST(req: Request) {
       },
       metadata: { userId, planSlug: planId },
     });
-
+console.log('[checkout] session created', {
+  sessionId: session.id,
+  sessionUrl: session.url,
+  successUrl,
+  cancelUrl,
+});
     console.log('✅ Checkout session created:', session.id);
     console.log('🔗 Checkout URL:', session.url);
 

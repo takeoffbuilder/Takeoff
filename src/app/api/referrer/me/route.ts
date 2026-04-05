@@ -34,6 +34,19 @@ export async function GET(req: Request) {
     const pending_count = pendingRows?.length || 0;
     const pending_total_amount = (pendingRows || []).reduce((sum, r) => sum + (r.payout_amount || 0), 0);
 
+    const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+    const forwardedHost =
+      req.headers.get('x-forwarded-host') || req.headers.get('host');
+
+    if (!forwardedHost) {
+      return NextResponse.json({ error: 'Missing host header' }, { status: 500 });
+    }
+
+    const base = `${forwardedProto}://${forwardedHost}`.replace(/\/$/, '');
+    const referral_link = profile.referral_code
+      ? `${base}/?ref=${encodeURIComponent(profile.referral_code)}`
+      : null;
+
     return NextResponse.json({
       referrer: profile,
       pending_count,
@@ -41,6 +54,7 @@ export async function GET(req: Request) {
       total_signups: profile.total_signups || 0,
       total_conversions: profile.total_conversions || 0,
       referral_code: profile.referral_code,
+      referral_link,
       is_affiliate: profile.is_affiliate,
     });
   } catch (e: unknown) {
