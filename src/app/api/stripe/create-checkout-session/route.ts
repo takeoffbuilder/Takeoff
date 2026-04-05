@@ -67,12 +67,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // Base URLs
-    const base = (
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      'http://localhost:3000'
-    ).replace(/\/$/, '');
+    const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+    const forwardedHost =
+      req.headers.get('x-forwarded-host') || req.headers.get('host');
+
+    if (!forwardedHost) {
+      return NextResponse.json({ error: 'Missing host header' }, { status: 500 });
+    }
+
+    const base = `${forwardedProto}://${forwardedHost}`.replace(/\/$/, '');
     const successUrl = `${base}/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${base}/payment?canceled=1`;
 
