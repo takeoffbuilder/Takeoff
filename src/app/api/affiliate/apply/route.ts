@@ -191,13 +191,26 @@ try {
       );
     }
 
-    // Generate onboarding link
+        // Generate onboarding link
     let onboardingLink = null;
     try {
+      const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+      const forwardedHost =
+        req.headers.get('x-forwarded-host') || req.headers.get('host');
+
+      if (!forwardedHost) {
+        return NextResponse.json(
+          { error: 'Missing host header' },
+          { status: 500 }
+        );
+      }
+
+      const base = `${forwardedProto}://${forwardedHost}`.replace(/\/$/, '');
+
       onboardingLink = await stripe.accountLinks.create({
         account: account.id,
-        refresh_url: 'http://localhost:3000/affiliate/onboarding/refresh',
-        return_url: 'http://localhost:3000/affiliate-confirmation',
+        refresh_url: `${base}/affiliate/onboarding/refresh`,
+        return_url: `${base}/affiliate-confirmation`,
         type: 'account_onboarding',
       });
       console.log('[Affiliate] Stripe onboarding link created:', {
