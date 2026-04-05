@@ -127,6 +127,7 @@ export default function DashboardPage() {
   const [isAffiliate, setIsAffiliate] = useState(false);
   const [isDualRole, setIsDualRole] = useState(false);
   const [affiliateStatusResolved, setAffiliateStatusResolved] = useState(false);
+  const [boosterAccountsResolved, setBoosterAccountsResolved] = useState(false);
 
   // Redirect only true affiliate-only users to the affiliate dashboard.
   // If the user has subscription access, the main dashboard always wins.
@@ -148,6 +149,25 @@ export default function DashboardPage() {
     boosterAccounts.length,
     router,
     router.query.fromAffiliate,
+  ]);
+
+  useEffect(() => {
+    if (!boosterAccountsResolved || isLoading) return;
+
+    const fromCheckout = router.query.fromCheckout === '1';
+
+    if (!fromCheckout && boosterAccounts.length === 0) {
+      console.log(
+        'No accounts and not from checkout → redirecting to choose-plan'
+      );
+      router.replace('/choose-plan');
+    }
+  }, [
+    boosterAccountsResolved,
+    isLoading,
+    boosterAccounts.length,
+    router,
+    router.query.fromCheckout,
   ]);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
@@ -484,6 +504,7 @@ export default function DashboardPage() {
       });
     } finally {
       if (!opts?.silent) setIsLoading(false);
+      setBoosterAccountsResolved(true);
     }
   };
 
