@@ -1,66 +1,184 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
-// Migration note: Google Maps deprecated AutocompleteService for new customers.
-// use-places-autocomplete may internally use AutocompleteService.
-// If you are a new customer and see errors, switch to a library or custom code using AutocompleteSuggestion.
-import usePlacesAutocomplete, { getGeocode } from 'use-places-autocomplete';
+
+type AddressSelection = {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+  full: string;
+};
+
+type SuggestionItem = {
+  id: string;
+  label: string;
+  prediction: google.maps.places.PlacePrediction;
+};
 
 const AddressAutocomplete = ({
   onSelect,
   value,
   onValueChange,
 }: {
-  onSelect: (address: {
-    street: string;
-    city: string;
-    state: string;
-    zip: string;
-    full: string;
-  }) => void;
+  onSelect: (address: AddressSelection) => void;
   value?: string;
   onValueChange?: (value: string) => void;
 }) => {
-  const {
-    ready,
-    value: valueFromHook,
-    setValue,
-    suggestions: { status, data },
-    clearSuggestions,
-  } = usePlacesAutocomplete({
-    requestOptions: {
-      /* Define search scope here if needed */
-    },
-    debounce: 300,
-    // If you are a new Google Maps customer and get errors, update use-places-autocomplete
-    // to use AutocompleteSuggestion instead of AutocompleteService, or use a compatible library.
-  });
+  const [internalValue, setInternalValue] = useState(value ?? '');
+  const [ready, setReady] = useState(false);
+  const [status, setStatus] = useState<'IDLE' | 'LOADING' | 'OK' | 'ERROR'>(
+    'IDLE'
+  );
+  const [data, setData] = useState<SuggestionItem[]>([]);
+
+  const sessionTokenRef =
+    useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeRequestIdRef = useRef(0);
+
+  const inputValue = value ?? internalValue;
+
+  const hasGooglePlaces = Boolean(
+    typeof window !== 'undefined' &&
+      window.google?.maps?.places?.AutocompleteSuggestion
+  );
+
+  useEffect(() => {
+    setInternalValue(value ?? '');
+  }, [value]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const initPlaces = async () => {
+      if (typeof window === 'undefined' || !window.google?.maps) {
+        return;
+      }
+
+      try {
+        await window.google.maps.importLibrary('places');
+        if (cancelled) return;
+
+        sessionTokenRef.current =
+          new window.google.maps.places.AutocompleteSessionToken();
+
+        setReady(true);
+      } catch (err) {
+        console.error(
+          '[AddressAutocomplete] Failed to load places library',
+          err
+        );
+        if (!cancelled) {
+          setReady(false);
+          setStatus('ERROR');
+        }
+      }
+    };
+
+    initPlaces();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !hasGooglePlaces) return;
+
+    const query = inputValue.trim();
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    if (!query) {
+      setData([]);
+      setStatus('IDLE');
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      const requestId = activeRequestIdRef.current + 1;
+      activeRequestIdRef.current = requestId;
+      setStatus('LOADING');
+
+      try {
+        const places = window.google.maps.places;
+
+        if (!sessionTokenRef.current) {
+          sessionTokenRef.current = new places.AutocompleteSessionToken();
+        }
+
+        const { suggestions } =
+          await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+            input: query,
+            sessionToken: sessionTokenRef.current,
+            includedRegionCodes: ['us'],
+            language: 'en-US',
+            region: 'us',
+          });
+
+        if (activeRequestIdRef.current !== requestId) return;
+
+        const nextData = (suggestions || [])
+          .map((suggestion) => {
+            const prediction = suggestion.placePrediction;
+            if (!prediction?.placeId) return null;
+
+            return {
+              id: prediction.placeId,
+              label:
+                prediction.text?.text ||
+                [prediction.mainText?.text, prediction.secondaryText?.text]
+                  .filter(Boolean)
+                  .join(', '),
+              prediction,
+            } as SuggestionItem;
+          })
+          .filter((item): item is SuggestionItem => Boolean(item));
+
+        setData(nextData);
+        setStatus(nextData.length > 0 ? 'OK' : 'IDLE');
+      } catch (err) {
+        if (activeRequestIdRef.current !== requestId) return;
+        console.error('[AddressAutocomplete] Suggestion lookup failed', err);
+        setStatus('ERROR');
+        setData([]);
+      }
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [hasGooglePlaces, inputValue, ready]);
+
+  const clearSuggestions = () => {
+    setData([]);
+    setStatus('IDLE');
+  };
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const nextValue = e.target.value;
-    setValue(nextValue);
+    setInternalValue(nextValue);
     onValueChange?.(nextValue);
   };
 
-  const handleSelect = (address: string) => {
-    getGeocode({ address }).then((results) => {
-      if (!results[0]) return;
-      const components = results[0].address_components;
+  const handleSelect = async (item: SuggestionItem) => {
+    try {
+      const place = item.prediction.toPlace();
+      await place.fetchFields({
+        fields: ['addressComponents', 'formattedAddress'],
+      });
+
+      const components = place.addressComponents || [];
       const get = (type: string, useShort = false) => {
-        const comp = components.find((c: unknown) => {
-          if (
-            typeof c === 'object' &&
-            c !== null &&
-            Array.isArray((c as { types?: unknown }).types)
-          ) {
-            return (c as { types: string[] }).types.includes(type);
-          }
-          return false;
-        });
+        const comp = components.find((c) => c.types?.includes(type));
         if (!comp) return '';
-        return useShort
-          ? (comp as { short_name: string }).short_name
-          : (comp as { long_name: string }).long_name;
+        return useShort ? comp.shortText || '' : comp.longText || '';
       };
+
       const street = [get('street_number'), get('route')]
         .filter(Boolean)
         .join(' ');
@@ -68,38 +186,50 @@ const AddressAutocomplete = ({
         get('locality') ||
         get('sublocality') ||
         get('administrative_area_level_2');
-      const state = get('administrative_area_level_1', true); // use short_name for state abbreviation
+      const state = get('administrative_area_level_1', true);
       const zip = get('postal_code');
-      setValue(street, false);
+      const full = place.formattedAddress || item.label;
+
+      setInternalValue(street || full);
+      onValueChange?.(street || full);
       clearSuggestions();
       onSelect({
         street,
         city,
         state,
         zip,
-        full: address,
+        full,
       });
-    });
+
+      sessionTokenRef.current =
+        new window.google.maps.places.AutocompleteSessionToken();
+    } catch (err) {
+      console.error(
+        '[AddressAutocomplete] Failed to resolve selected place',
+        err
+      );
+    }
   };
 
   return (
     <div>
       <Input
-        value={value ?? valueFromHook}
+        value={inputValue}
         onChange={handleInput}
         disabled={!ready}
         placeholder="Enter your address"
+        autoComplete="street-address"
         className="bg-brand-midnight/50 border-brand-sky-blue/30 text-brand-white focus:border-brand-sky-blue"
       />
-      {status === 'OK' && (
-        <ul className="bg-white border rounded shadow mt-1">
-          {data.map(({ place_id, description }) => (
+      {status === 'OK' && data.length > 0 && (
+        <ul className="bg-white border rounded shadow mt-1 max-h-64 overflow-auto">
+          {data.map((item) => (
             <li
-              key={place_id}
-              onClick={() => handleSelect(description)}
+              key={item.id}
+              onClick={() => handleSelect(item)}
               className="p-2 cursor-pointer hover:bg-gray-100"
             >
-              {description}
+              {item.label}
             </li>
           ))}
         </ul>
