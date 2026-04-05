@@ -130,6 +130,20 @@ export default function ChoosePlanPage() {
   // Redirect affiliate-only users away from this page
   // Redirect affiliate-intent users away from subscriber plan selection.
   useEffect(() => {
+    console.log('[choose-plan] page load', {
+      isReady: router.isReady,
+      mode: router.query.mode,
+      intent: router.query.intent,
+      affiliate: router.query.affiliate,
+      href: typeof window !== 'undefined' ? window.location.href : 'server',
+    });
+  }, [
+    router.isReady,
+    router.query.mode,
+    router.query.intent,
+    router.query.affiliate,
+  ]);
+  useEffect(() => {
     if (!router.isReady) return;
 
     const queryIntent = router.query.intent;
@@ -157,7 +171,12 @@ export default function ChoosePlanPage() {
         localStorage.removeItem('post_verify_intent');
         localStorage.removeItem('post_verify_redirect');
       }
-
+      console.log('[choose-plan] affiliate flow detected → redirect', {
+        isAffiliateFlow,
+        redirectTarget: redirectTarget || '/affiliate-application',
+        storedIntent,
+        queryIntent,
+      });
       router.replace(redirectTarget || '/affiliate-application');
     }
   }, [router, router.isReady, router.query.affiliate, router.query.intent]);
@@ -235,7 +254,16 @@ export default function ChoosePlanPage() {
   // Redirect existing subscribers to dashboard if they land here without ?mode=add
   useEffect(() => {
     if (ownedPlanSlugs.length > 0 && !isAddingAccount) {
-      console.log('Subscriber landed on choose-plan without ?mode=add — redirecting to dashboard');
+      console.log(
+        'Subscriber landed on choose-plan without ?mode=add — redirecting to dashboard'
+      );
+      console.log(
+        '[choose-plan] subscriber landed here without mode=add → redirect /dashboard',
+        {
+          ownedPlanSlugs,
+          isAddingAccount,
+        }
+      );
       router.replace('/dashboard');
     }
   }, [ownedPlanSlugs, isAddingAccount, router]);

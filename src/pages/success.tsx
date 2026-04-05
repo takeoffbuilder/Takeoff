@@ -44,6 +44,11 @@ export default function SuccessPage() {
     console.log('✅ Stripe session ID captured:', session_id);
 
     let cancelled = false;
+    console.log('[success] page load', {
+      sessionIdQuery,
+      isReady: router.isReady,
+      href: typeof window !== 'undefined' ? window.location.href : 'server',
+    });
     let authRetryCount = 0;
     const maxAuthRetries = 5;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -72,6 +77,10 @@ export default function SuccessPage() {
 
       try {
         const user = await authService.getCurrentUser();
+        console.log('[success] auth check', {
+          attempt: currentAttempt,
+          userId: user?.id || null,
+        });
 
         if (!user?.id) {
           authRetryCount += 1;
@@ -92,6 +101,10 @@ export default function SuccessPage() {
             return;
           }
 
+          console.log('[success] scheduling retry', {
+            nextAttempt: currentAttempt + 1,
+            delayMs,
+          });
           timeoutId = setTimeout(checkSubscriptionStatus, delayMs);
           return;
         }
@@ -112,13 +125,21 @@ export default function SuccessPage() {
         }
 
         const data: SubscriptionStatusResponse = await res.json();
-        console.log('📦 Subscription status response:', data);
+        console.log('[success] subscription status response', {
+          attempt: currentAttempt,
+          userId: user.id,
+          data,
+        });
 
         if (cancelled) return;
 
         if (isAccountReady(data)) {
           console.log(
-            '✅ Account is ready. Staying on success page for manual redirect.'
+            '[success] account ready → staying on success page (manual redirect)',
+            {
+              attempt: currentAttempt,
+              userId: user.id,
+            }
           );
           setIsProcessing(false);
           setError(null);
@@ -127,6 +148,10 @@ export default function SuccessPage() {
 
         if (data?.pendingAuth === true) {
           console.warn('⏳ Subscription status reports pending auth/session.');
+          console.log('[success] scheduling retry', {
+            nextAttempt: currentAttempt + 1,
+            delayMs,
+          });
           timeoutId = setTimeout(checkSubscriptionStatus, delayMs);
           return;
         }
@@ -140,9 +165,13 @@ export default function SuccessPage() {
           return;
         }
 
+        console.log('[success] scheduling retry', {
+          nextAttempt: currentAttempt + 1,
+          delayMs,
+        });
         timeoutId = setTimeout(checkSubscriptionStatus, delayMs);
       } catch (err) {
-        console.error('❌ Error checking subscription status:', err);
+        console.error('[success] status polling error', err);
 
         if (cancelled) return;
 
@@ -154,6 +183,10 @@ export default function SuccessPage() {
           return;
         }
 
+        console.log('[success] scheduling retry', {
+          nextAttempt: currentAttempt + 1,
+          delayMs,
+        });
         timeoutId = setTimeout(checkSubscriptionStatus, delayMs);
       }
     };
