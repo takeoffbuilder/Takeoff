@@ -9,10 +9,49 @@ type AddressSelection = {
   full: string;
 };
 
+type GoogleAddressComponentLike = {
+  types?: string[];
+  shortText?: string;
+  longText?: string;
+};
+
+type GooglePlaceLike = {
+  fetchFields: (args: { fields: string[] }) => Promise<void>;
+  addressComponents?: GoogleAddressComponentLike[];
+  formattedAddress?: string;
+};
+
+type GooglePlacePredictionLike = {
+  placeId?: string;
+  text?: { text?: string };
+  mainText?: { text?: string };
+  secondaryText?: { text?: string };
+  toPlace: () => GooglePlaceLike;
+};
+
+type GoogleAutocompleteSuggestionLike = {
+  placePrediction?: GooglePlacePredictionLike | null;
+};
+
+type GooglePlacesLibraryLike = {
+  AutocompleteSessionToken: new () => unknown;
+  AutocompleteSuggestion: {
+    fetchAutocompleteSuggestions: (args: {
+      input: string;
+      sessionToken: unknown;
+      includedRegionCodes: string[];
+      language: string;
+      region: string;
+    }) => Promise<{
+      suggestions?: GoogleAutocompleteSuggestionLike[];
+    }>;
+  };
+};
+
 type SuggestionItem = {
   id: string;
   label: string;
-  prediction: google.maps.places.PlacePrediction;
+  prediction: GooglePlacePredictionLike;
 };
 
 const AddressAutocomplete = ({
@@ -31,8 +70,7 @@ const AddressAutocomplete = ({
   );
   const [data, setData] = useState<SuggestionItem[]>([]);
 
-  const sessionTokenRef =
-    useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const sessionTokenRef = useRef<unknown | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeRequestIdRef = useRef(0);
 
@@ -59,8 +97,8 @@ const AddressAutocomplete = ({
         await window.google.maps.importLibrary('places');
         if (cancelled) return;
 
-        sessionTokenRef.current =
-          new window.google.maps.places.AutocompleteSessionToken();
+        const places = window.google.maps.places as GooglePlacesLibraryLike;
+        sessionTokenRef.current = new places.AutocompleteSessionToken();
 
         setReady(true);
       } catch (err) {
@@ -103,7 +141,7 @@ const AddressAutocomplete = ({
       setStatus('LOADING');
 
       try {
-        const places = window.google.maps.places;
+        const places = window.google.maps.places as GooglePlacesLibraryLike;
 
         if (!sessionTokenRef.current) {
           sessionTokenRef.current = new places.AutocompleteSessionToken();
@@ -201,8 +239,8 @@ const AddressAutocomplete = ({
         full,
       });
 
-      sessionTokenRef.current =
-        new window.google.maps.places.AutocompleteSessionToken();
+      const places = window.google.maps.places as GooglePlacesLibraryLike;
+      sessionTokenRef.current = new places.AutocompleteSessionToken();
     } catch (err) {
       console.error(
         '[AddressAutocomplete] Failed to resolve selected place',
