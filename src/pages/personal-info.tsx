@@ -699,6 +699,10 @@ export default function PersonalInfoPage() {
                 Street Address
               </Label>
               <AddressAutocomplete
+                value={formData.streetAddress}
+                onValueChange={(value) =>
+                  handleInputChange('streetAddress', value)
+                }
                 onSelect={({ street, city, state, zip }) => {
                   handleInputChange('streetAddress', street);
                   handleInputChange('city', city);
