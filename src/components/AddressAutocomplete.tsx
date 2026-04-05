@@ -59,6 +59,9 @@ type GooglePlacesLibraryLike = {
   };
 };
 
+type GooglePlacesPresenceLike = {
+  AutocompleteSuggestion?: unknown;
+};
 type SuggestionItem = {
   id: string;
   label: string;
@@ -89,7 +92,8 @@ const AddressAutocomplete = ({
 
   const hasGooglePlaces = Boolean(
     typeof window !== 'undefined' &&
-      window.google?.maps?.places?.AutocompleteSuggestion
+      (window.google?.maps?.places as GooglePlacesPresenceLike | undefined)
+        ?.AutocompleteSuggestion
   );
 
   useEffect(() => {
