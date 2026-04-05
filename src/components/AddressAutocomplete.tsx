@@ -269,7 +269,6 @@ const AddressAutocomplete = ({
       <Input
         value={inputValue}
         onChange={handleInput}
-        disabled={!ready}
         placeholder="Enter your address"
         autoComplete="street-address"
         className="bg-brand-midnight/50 border-brand-sky-blue/30 text-brand-white focus:border-brand-sky-blue"
