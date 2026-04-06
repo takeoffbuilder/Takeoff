@@ -19,24 +19,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const supabase = createAdminClient();
 
   // Option 1: Check user_booster_accounts for active status
-  const { data: accounts } = await supabase
+    const { data: accounts } = await supabase
     .from('user_booster_accounts')
     .select('id, status')
     .eq('user_id', userId)
-    .in('status', ['active', 'pending']);
+    .in('status', ['active', 'pending', 'trialing']);
 
   const normalizedAccounts = (accounts || []).map((account) => ({
     id: account.id,
     status: account.status,
   }));
 
-  const firstAccount = normalizedAccounts[0] || null;
-  const hasActiveSubscription = normalizedAccounts.length > 0;
+  const activeAccount =
+    normalizedAccounts.find(
+      (account) =>
+        account.status === 'active' || account.status === 'trialing'
+    ) || null;
 
-  const isSubscriber = hasActiveSubscription;
-  const status = hasActiveSubscription
-    ? firstAccount?.status || 'active'
-    : 'none';
+  const firstAccount = normalizedAccounts[0] || null;
+
+  const isSubscriber = Boolean(activeAccount);
+  
+
+  const status = activeAccount
+    ? activeAccount.status
+    : firstAccount?.status || 'none';
 
   res.status(200).json({
     isSubscriber,

@@ -27,12 +27,20 @@ export async function POST(req: Request) {
   const affiliate = { id: profile.id, user_id: profile.id };
 
   // Check if user is already a subscriber (has a booster account)
-  const { data: booster } = await supabase
+    // Check if user is already a true subscriber (active or trialing account only)
+  const { data: boosterAccounts } = await supabase
     .from('user_booster_accounts')
-    .select('id')
+    .select('id, status')
     .eq('user_id', userId)
-    .maybeSingle();
-  if (booster) {
+    .in('status', ['active', 'pending', 'trialing']);
+
+  const alreadySubscriber =
+    (boosterAccounts || []).some(
+      (account) =>
+        account.status === 'active' || account.status === 'trialing'
+    );
+
+  if (alreadySubscriber) {
     return NextResponse.json({ ok: true, alreadySubscriber: true });
   }
 
