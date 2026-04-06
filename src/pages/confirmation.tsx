@@ -69,7 +69,12 @@ export default function ConfirmationPage() {
           ? decodeURIComponent(router.query.plan)
           : null;
       const plan = planFromQuery || localStorage.getItem('selectedPlan');
-
+      console.log('[confirmation] plan resolution', {
+        planFromQuery,
+        planFromStorage: localStorage.getItem('selectedPlan'),
+        finalPlan: plan,
+        href: typeof window !== 'undefined' ? window.location.href : 'server',
+      });
       if (!personalInfoFromDb || !profileFromDb) {
         toast({
           title: 'Missing Information',

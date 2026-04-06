@@ -486,7 +486,11 @@ export default function PersonalInfoPage() {
         const encodedPlan = selectedPlan
           ? encodeURIComponent(selectedPlan)
           : '';
-
+        console.log('[personal-info] redirecting to confirmation', {
+          selectedPlan,
+          encodedPlan,
+          href: typeof window !== 'undefined' ? window.location.href : 'server',
+        });
         router.push(
           encodedPlan ? `/confirmation?plan=${encodedPlan}` : '/confirmation'
         );
