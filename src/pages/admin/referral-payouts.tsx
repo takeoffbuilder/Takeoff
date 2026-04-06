@@ -73,6 +73,11 @@ export default function ReferralPayoutsAdminPage() {
     referred_user_id: string,
     action: 'approve' | 'pay' | 'reject'
   ) {
+    if (!referred_user_id || !action) {
+      setError('Missing referred user id or action.');
+      return;
+    }
+
     setActionLoading(referred_user_id + ':' + action);
     try {
       const token = await getAccessToken();
@@ -192,7 +197,9 @@ export default function ReferralPayoutsAdminPage() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          disabled={actionLoading !== null}
+                          disabled={
+                            actionLoading !== null || !r.referred_user_id
+                          }
                           onClick={() =>
                             doAction(r.referred_user_id, 'approve')
                           }
@@ -202,14 +209,18 @@ export default function ReferralPayoutsAdminPage() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          disabled={actionLoading !== null}
+                          disabled={
+                            actionLoading !== null || !r.referred_user_id
+                          }
                           onClick={() => doAction(r.referred_user_id, 'reject')}
                         >
                           Reject
                         </Button>
                         <Button
                           size="sm"
-                          disabled={actionLoading !== null}
+                          disabled={
+                            actionLoading !== null || !r.referred_user_id
+                          }
                           onClick={() => doAction(r.referred_user_id, 'pay')}
                         >
                           Pay
@@ -219,29 +230,6 @@ export default function ReferralPayoutsAdminPage() {
                   </tr>
                 ))}
                 {/* Example dummy row for illustration */}
-                <tr className="border-t bg-yellow-50">
-                  <td className="px-3 py-2 font-mono text-xs">anon1234</td>
-                  <td className="px-3 py-2">2026-01-01</td>
-                  <td className="px-3 py-2">Yes</td>
-                  <td className="px-3 py-2">2026-01-02</td>
-                  <td className="px-3 py-2">starter_boost</td>
-                  <td className="px-3 py-2">$10.00</td>
-                  <td className="px-3 py-2">approved</td>
-                  <td className="px-3 py-2"></td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="secondary" disabled>
-                        Approve
-                      </Button>
-                      <Button size="sm" variant="secondary" disabled>
-                        Reject
-                      </Button>
-                      <Button size="sm" disabled>
-                        Pay
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
               </tbody>
             </table>
           </div>
