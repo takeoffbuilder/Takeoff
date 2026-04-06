@@ -39,14 +39,15 @@ export async function POST(req: Request) {
       (account) =>
         account.status === 'active' || account.status === 'trialing'
     );
-
+  console.log('[referral attach] Subscriber Check', {
+  userId,
+  boosterAccounts,
+  alreadySubscriber,
+});
   if (alreadySubscriber) {
     return NextResponse.json({ ok: true, alreadySubscriber: true });
   }
-console.log('[referral attach] NEW LOG ACTIVE', {
-  userId,
-  boosterAccounts,
-});
+
   // Check if user has already been referred
   const { data: existing, error: checkError } = await supabase
     .from('referred_users')
