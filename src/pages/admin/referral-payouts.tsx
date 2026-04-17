@@ -6,16 +6,29 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface PayoutRow {
   id: string;
-  referral_code: string;
-  referred_user_id: string;
-  anonymized_id: string;
-  signup_at: string;
+  referrer_id: string;
+
+  // 🔥 identity + context
+  referred_user_id: string | null;
+  referral_code: string | null;
+  anonymized_id?: string;
+
+  // 🔥 lifecycle
+  signup_at: string | null;
   converted: boolean;
-  conversion_at?: string | null;
+  conversion_at: string | null;
+
+  // 🔥 plan + money
+  plan_slug: string | null;
+  amount: number | null;
   payout_amount?: number | null;
-  payout_status: string;
-  paid_at?: string | null;
-  plan_slug?: string | null;
+
+  // 🔥 status
+  status: string;
+  payout_status?: string | null;
+
+  // 🔥 payment timing
+  paid_at: string | null;
 }
 
 export default function ReferralPayoutsAdminPage() {
@@ -68,7 +81,17 @@ export default function ReferralPayoutsAdminPage() {
   function fmtDate(d?: string | null) {
     return d ? d.slice(0, 10) : '';
   }
+  function formatDate(value?: string | null) {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-US');
+  }
 
+  function anonymizeUserId(id?: string | null) {
+    if (!id) return '—';
+    return `${id.slice(0, 6)}…${id.slice(-4)}`;
+  }
   async function doAction(
     referred_user_id: string,
     action: 'approve' | 'pay' | 'reject'
@@ -178,9 +201,14 @@ export default function ReferralPayoutsAdminPage() {
                 )}
                 {rows.map((r) => (
                   <tr key={r.id} className="border-t">
-                    <td className="px-3 py-2 font-mono text-xs">
-                      {r.anonymized_id}
-                    </td>
+                    <td className="px-3 py-2">
+                    <div className="font-mono text-sm">
+                     {anonymizeUserId(r.referred_user_id)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                     Ref: {r.referral_code || '—'}
+                    </div>
+                      </td>
                     <td className="px-3 py-2">{fmtDate(r.signup_at)}</td>
                     <td className="px-3 py-2">{r.converted ? 'Yes' : 'No'}</td>
                     <td className="px-3 py-2">{fmtDate(r.conversion_at)}</td>

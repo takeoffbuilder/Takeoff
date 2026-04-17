@@ -38,6 +38,11 @@ export async function GET(req: Request) {
       return {
         ...row,
         referred_user_id: referredUser?.referred_user_id || null,
+        referral_code: referredUser?.referral_code || null,    
+        plan_slug: referredUser?.plan_slug || null,
+        payout_amount: referredUser?.payout_amount ?? row.amount ?? null,
+        payout_status: referredUser?.payout_status || row.status || null,
+        payout_paid_at: referredUser?.paid_at || row.paid_at || null,
       };
     })
   );
