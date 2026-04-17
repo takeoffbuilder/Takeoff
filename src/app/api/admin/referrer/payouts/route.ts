@@ -29,11 +29,13 @@ export async function GET(req: Request) {
   const items = await Promise.all(
     payoutRows.map(async (row) => {
       const { data: referredUser } = await admin
-        .from('referred_users')
-        .select('referred_user_id')
-        .eq('referrer_id', row.referrer_id)
-        .eq('payout_amount', row.amount)
-        .maybeSingle();
+      .from('referred_users')
+      .select(
+       'referred_user_id, referral_code, signup_at, converted, conversion_at, payout_amount, payout_status, paid_at, plan_slug'
+     )
+      .eq('referrer_id', row.referrer_id)
+      .eq('payout_amount', row.amount)
+      .maybeSingle();
 
       return {
         ...row,
