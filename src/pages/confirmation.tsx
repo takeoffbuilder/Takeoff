@@ -135,7 +135,20 @@ export default function ConfirmationPage() {
           ),
         };
         setPersonalInfo(personalData);
-        setSelectedPlan(JSON.parse(plan));
+        const parsedPlan = JSON.parse(plan);
+        setSelectedPlan(parsedPlan);
+
+        console.log('[confirmation] loadData result', {
+          userId: user.id,
+          planFromQuery,
+          planFromStorage: localStorage.getItem('selectedPlan'),
+          finalPlan: parsedPlan,
+          hasPersonalInfo: Boolean(personalInfoFromDb),
+          hasProfile: Boolean(profileFromDb),
+          email: profileFromDb?.email || user.email,
+          href: typeof window !== 'undefined' ? window.location.href : 'server',
+        });
+
         setIsLoading(false);
       } catch (error) {
         console.error('Error loading data:', error);

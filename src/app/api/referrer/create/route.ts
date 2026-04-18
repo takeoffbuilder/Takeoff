@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/integrations/supabase/admin-client';
 
-function buildLink(code: string) {
-  const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+function buildLink(req: Request, code: string) {
+  const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+  const forwardedHost =
+    req.headers.get('x-forwarded-host') || req.headers.get('host');
+
+  if (!forwardedHost) {
+    throw new Error('Missing host header');
+  }
+
+  const base = `${forwardedProto}://${forwardedHost}`.replace(/\/$/, '');
   return `${base}/?ref=${encodeURIComponent(code)}`;
 }
 
@@ -29,12 +37,34 @@ export async function POST(req: Request) {
       .eq('id', user.id)
       .maybeSingle();
     if (existing?.referral_code) {
-      return NextResponse.json({ referral_code: existing.referral_code, link: buildLink(existing.referral_code) });
+      return NextResponse.json({
+  referral_code: existing.referral_code,
+  link: buildLink(req, existing.referral_code),
+});
     }
 
-    const { data: codeData, error: genErr } = await admin.rpc('generate_referral_code', { p_len: 8 });
-    if (genErr) throw genErr;
-    const referral_code = (codeData as string) || cryptoRandomFallback();
+    let referral_code = '';
+let attempts = 0;
+
+while (!referral_code && attempts < 10) {
+  attempts += 1;
+  const candidate = cryptoRandomFallback(8);
+
+  const { data: existingCode, error: checkErr } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('referral_code', candidate)
+    .maybeSingle();
+
+  if (checkErr) throw checkErr;
+  if (!existingCode) {
+    referral_code = candidate;
+  }
+}
+
+if (!referral_code) {
+  throw new Error('Failed to generate a unique referral code');
+}
 
     const { error: updateErr } = await admin
       .from('profiles')
@@ -42,7 +72,10 @@ export async function POST(req: Request) {
       .eq('id', user.id);
     if (updateErr) throw updateErr;
 
-    return NextResponse.json({ referral_code, link: buildLink(referral_code) }, { status: 201 });
+    return NextResponse.json(
+  { referral_code, link: buildLink(req, referral_code) },
+  { status: 201 }
+);
   } catch (e: unknown) {
     console.error('referrer/create failed', e);
     let message = 'Unknown error';

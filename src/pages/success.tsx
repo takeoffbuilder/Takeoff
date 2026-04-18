@@ -61,12 +61,12 @@ export default function SuccessPage() {
         data?.isSubscriber === true ||
         data?.hasActiveSubscription === true ||
         data?.status === 'active' ||
-        data?.status === 'pending' ||
+        data?.status === 'trialing' ||
         data?.account?.status === 'active' ||
-        data?.account?.status === 'pending' ||
+        data?.account?.status === 'trialing' ||
         (Array.isArray(data?.accounts) &&
           data.accounts.some(
-            (acct) => acct?.status === 'active' || acct?.status === 'pending'
+            (acct) => acct?.status === 'active' || acct?.status === 'trialing'
           ))
       );
     };
@@ -164,7 +164,6 @@ export default function SuccessPage() {
           );
           return;
         }
-
         console.log('[success] scheduling retry', {
           nextAttempt: currentAttempt + 1,
           delayMs,
@@ -336,7 +335,7 @@ export default function SuccessPage() {
                     <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-white font-medium">
-                        Redirecting to Dashboard
+                        Ready to Dashboard
                       </p>
                       <p className="text-gray-400 text-sm mt-1">
                         Your account has been verified successfully
