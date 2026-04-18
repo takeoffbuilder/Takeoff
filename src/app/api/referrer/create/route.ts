@@ -38,8 +38,8 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (existing?.referral_code) {
       return NextResponse.json({
-  referral_code: existing.referral_code,
-  link: buildLink(req, existing.referral_code),
+        referral_code: existing.referral_code,
+        link: buildLink(req, existing.referral_code),
 });
     }
 
