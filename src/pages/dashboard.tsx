@@ -101,18 +101,6 @@ const getBalanceMetrics = (
   return { availableCredit, utilizationPct };
 };
 
-const getFirstAndRegular = (
-  trueLimit: number
-): { first: number; regular: number } => {
-  const regular = Math.floor(trueLimit);
-  const first =
-    Math.round((trueLimit - regular * 11 + Number.EPSILON) * 100) / 100;
-
-  return {
-    first: first > 0 ? first : regular,
-    regular,
-  };
-};
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export default function DashboardPage() {
   const router = useRouter();
@@ -1209,14 +1197,10 @@ export default function DashboardPage() {
                   {/* First vs Next Scheduled Payment */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     {(() => {
-                      const creditLimit = Number(
-                        selectedAccount.creditLimit || 0
+                      const monthlyAmount = Number(
+                        selectedAccount.monthlyAmount || 0
                       );
-                      const rate = getPlanUtilizationRate(
-                        selectedAccount.planName
-                      );
-                      const trueLimit = getTrueLimit(creditLimit, rate);
-                      const { first, regular } = getFirstAndRegular(trueLimit);
+
                       return (
                         <>
                           <div className="bg-brand-midnight/30 rounded-lg p-4 border border-brand-sky-blue/5">
@@ -1224,10 +1208,10 @@ export default function DashboardPage() {
                               First Payment
                             </div>
                             <div className="text-2xl font-bold text-white">
-                              ${first.toFixed(2)}
+                              ${monthlyAmount.toFixed(2)}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
-                              Higher first month to handle cents
+                              Your first scheduled monthly payment
                             </div>
                           </div>
                           <div className="bg-brand-midnight/30 rounded-lg p-4 border border-brand-sky-blue/5">
@@ -1235,7 +1219,7 @@ export default function DashboardPage() {
                               Next Monthly Amount
                             </div>
                             <div className="text-2xl font-bold text-white">
-                              ${regular.toFixed(2)}
+                              ${monthlyAmount.toFixed(2)}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
                               Typical payment each following month
