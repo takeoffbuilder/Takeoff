@@ -222,20 +222,18 @@ export default function ChoosePlanPage() {
         const admin = await isAdmin(user.email);
         setShowAdminButton(admin);
 
-        // Always fetch active and pending accounts to determine subscriber state
-        const [active, pending] = await Promise.all([
-          boosterAccountService.getUserAccountsByStatus(user.id, 'active'),
-          boosterAccountService.getUserAccountsByStatus(user.id, 'pending'),
-        ]);
+        // Only treat active accounts as subscriber-owned plans here.
+        // Pending accounts should not kick a user out of onboarding.
+        const active = await boosterAccountService.getUserAccountsByStatus(
+          user.id,
+          'active'
+        );
 
         interface AccountWithPlanSlug {
           booster_plans?: { plan_slug?: string | null } | null;
         }
 
-        const allAccounts = [
-          ...(active as AccountWithPlanSlug[]),
-          ...(pending as AccountWithPlanSlug[]),
-        ];
+        const allAccounts = active as AccountWithPlanSlug[];
 
         const slugs = allAccounts
           .map((acc) => acc.booster_plans?.plan_slug || undefined)
