@@ -14,12 +14,11 @@ interface PayoutRow {
   anonymized_id?: string;
 
   // 🔥 lifecycle
-  signup_at: string | null;
+
   converted: boolean;
-  conversion_at: string | null;
 
   // 🔥 plan + money
-  plan_slug: string | null;
+
   amount: number | null;
   payout_amount?: number | null;
 
@@ -78,9 +77,6 @@ export default function ReferralPayoutsAdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, page]);
 
-  function fmtDate(d?: string | null) {
-    return d ? d.slice(0, 10) : '';
-  }
   function formatDate(value?: string | null) {
     if (!value) return '—';
     const d = new Date(value);
@@ -181,10 +177,7 @@ export default function ReferralPayoutsAdminPage() {
               <thead>
                 <tr className="bg-gray-50 text-left">
                   <th className="px-3 py-2">Anon User</th>
-                  <th className="px-3 py-2">Signup</th>
                   <th className="px-3 py-2">Converted</th>
-                  <th className="px-3 py-2">Conversion</th>
-                  <th className="px-3 py-2">Plan</th>
                   <th className="px-3 py-2">Amount</th>
                   <th className="px-3 py-2">Status</th>
                   <th className="px-3 py-2">Paid At</th>
@@ -194,7 +187,7 @@ export default function ReferralPayoutsAdminPage() {
               <tbody>
                 {rows.length === 0 && (
                   <tr>
-                    <td className="px-3 py-4 text-gray-500" colSpan={9}>
+                    <td className="px-3 py-4 text-gray-500" colSpan={6}>
                       No rows
                     </td>
                   </tr>
@@ -202,24 +195,26 @@ export default function ReferralPayoutsAdminPage() {
                 {rows.map((r) => (
                   <tr key={r.id} className="border-t">
                     <td className="px-3 py-2">
-                    <div className="font-mono text-sm">
-                     {anonymizeUserId(r.referred_user_id)}
+                      <div className="font-mono text-sm">
+                        {anonymizeUserId(r.referred_user_id)}
                       </div>
                       <div className="text-xs text-gray-500">
-                     Ref: {r.referral_code || '—'}
-                    </div>
-                      </td>
-                    <td className="px-3 py-2">{fmtDate(r.signup_at)}</td>
-                    <td className="px-3 py-2">{r.converted ? 'Yes' : 'No'}</td>
-                    <td className="px-3 py-2">{fmtDate(r.conversion_at)}</td>
-                    <td className="px-3 py-2">{r.plan_slug || ''}</td>
-                    <td className="px-3 py-2">
-                      {r.payout_amount
-                        ? `$${Number(r.payout_amount).toFixed(2)}`
-                        : ''}
+                        Ref: {r.referral_code || '—'}
+                      </div>
                     </td>
-                    <td className="px-3 py-2">{r.payout_status}</td>
-                    <td className="px-3 py-2">{fmtDate(r.paid_at)}</td>
+
+                    <td className="px-3 py-2">{r.converted ? 'Yes' : 'No'}</td>
+
+                    <td className="px-3 py-2">
+                      ${Number(r.payout_amount ?? r.amount ?? 0).toFixed(2)}
+                    </td>
+
+                    <td className="px-3 py-2">
+                      {r.payout_status || r.status || '—'}
+                    </td>
+
+                    <td className="px-3 py-2">{formatDate(r.paid_at)}</td>
+
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-2">
                         <Button
@@ -228,9 +223,10 @@ export default function ReferralPayoutsAdminPage() {
                           disabled={
                             actionLoading !== null || !r.referred_user_id
                           }
-                          onClick={() =>
-                            doAction(r.referred_user_id, 'approve')
-                          }
+                          onClick={() => {
+                            if (!r.referred_user_id) return;
+                            doAction(r.referred_user_id, 'approve');
+                          }}
                         >
                           Approve
                         </Button>
@@ -240,7 +236,10 @@ export default function ReferralPayoutsAdminPage() {
                           disabled={
                             actionLoading !== null || !r.referred_user_id
                           }
-                          onClick={() => doAction(r.referred_user_id, 'reject')}
+                          onClick={() => {
+                            if (!r.referred_user_id) return;
+                            doAction(r.referred_user_id, 'reject');
+                          }}
                         >
                           Reject
                         </Button>
@@ -249,7 +248,10 @@ export default function ReferralPayoutsAdminPage() {
                           disabled={
                             actionLoading !== null || !r.referred_user_id
                           }
-                          onClick={() => doAction(r.referred_user_id, 'pay')}
+                          onClick={() => {
+                            if (!r.referred_user_id) return;
+                            doAction(r.referred_user_id, 'pay');
+                          }}
                         >
                           Pay
                         </Button>
@@ -257,7 +259,6 @@ export default function ReferralPayoutsAdminPage() {
                     </td>
                   </tr>
                 ))}
-                {/* Example dummy row for illustration */}
               </tbody>
             </table>
           </div>
