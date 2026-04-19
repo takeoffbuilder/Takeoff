@@ -32,7 +32,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     .maybeSingle();
   if (profile?.referral_code) {
     referralCode = profile.referral_code;
-    const base = process.env.NEXT_PUBLIC_APP_URL || 'https://www.takeoffbuilder.com';
+    const forwardedProto =
+  (req.headers['x-forwarded-proto'] as string) || 'https';
+
+const forwardedHost =
+  (req.headers['x-forwarded-host'] as string) ||
+  req.headers.host;
+
+if (!forwardedHost) {
+  return res.status(500).json({ error: 'Missing host header' });
+}
+
+const base = `${forwardedProto}://${forwardedHost}`.replace(/\/$/, '');
     referralLink = `${base}/?ref=${encodeURIComponent(referralCode)}`;
   }
 
